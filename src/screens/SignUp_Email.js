@@ -27,7 +27,7 @@ export default function SignUpEmail({ navigation }) {
         onPress={() => {
           // 이메일 유효성 검사 추가 가능
           // 다음 화면으로 이동 등
-          navigation.navigate('NextScreen', { email });
+          navigation.replace('Main', { email });
         }}
       >
         <Text style={styles.buttonText}>계속</Text>

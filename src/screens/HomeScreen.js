@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Image, ScrollView, Alert } fr
 
 import Ionicons from '@expo/vector-icons/Ionicons'
 
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { Calendar } from 'react-native-calendars';
 import ProgressBar from 'react-native-progress/Bar';
 
@@ -121,7 +121,7 @@ export default function HomeScreen(){
       Alert.alert(dateString, 'Todo', [
         {
           text: '취소',
-          style: 'cancel'
+          styles: 'cancel'
         },
         {
           text: '저장',
@@ -135,21 +135,24 @@ export default function HomeScreen(){
   };
 
   return(
-    <SafeAreaView style={styles.allArea}>
-      <ScrollView>
-        <HomeHeader/>
-        <MonthCalendar
-          selectedDate={selectedDate} onDateSelect={dateSelect} today={today_date}/>
-        <StateList/>
-        <TodayList/>
-    </ScrollView>
-    </SafeAreaView>
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.allArea}>
+        <ScrollView>
+          <HomeHeader/>
+          <MonthCalendar
+            selectedDate={selectedDate} onDateSelect={dateSelect} today={today_date}/>
+          <StateList/>
+          <TodayList/>
+      </ScrollView>
+      </SafeAreaView>
+    </SafeAreaProvider>
+    
   );
 }
 
 const styles = StyleSheet.create({
   allArea: {
-    flex: 1,
+    flex: 0,
     backgroundColor: "#FFFFFF"
   },
   header: {
@@ -219,6 +222,6 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     backgroundColor: 'lightgray',
     justifyContent: 'center',
-    alignItems: 'center',
+    alignItems: 'center'
   }
 });
