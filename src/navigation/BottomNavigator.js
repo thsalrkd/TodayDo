@@ -22,6 +22,15 @@ export default function BottomTabNavigator(){
     <Tab.Navigator
       initialRouteName='Home'
       screenOptions={({route}) => ({
+
+        tabBarShowLabel: false,
+
+        tabBarItemStyle: {
+          justifyContent: 'center',
+          alignItems: 'center',
+          flexDirection: 'row'
+        },
+
         tabBarIcon: ({focused, color, size}) => {
           let iconName;
           if(route.name == "Record"){
