@@ -161,16 +161,26 @@ export default function TodoScreen(){
   const sortTodo = useMemo(() => {
     const newSortList = [...todo];
 
-    if(sortOrder === '기한순') {
-      const parsedDate = (dateString) => {
-        const reDate = dateString.replace(/\./gi, '-');
-        return new Date(reDate);
+    const parsedDate = (dateString) => {
+      const reDate = dateString.replace(/\./gi, '-');
+      return new Date(reDate);
+    }
+
+    newSortList.sort((a, b) => {
+      if(a.completed && !b.completed){
+        return 1;
       }
-      newSortList.sort((a, b) => parsedDate(a.date) - parsedDate(b.date));
-    }
-    else if(sortOrder === '최신등록순'){
-      newSortList.sort((a, b) => Number(b.id) - Number(a.id));
-    }
+      if(!a.completed && b.completed){
+        return -1;
+      }
+
+      if(sortOrder === '기한순') {
+        return parsedDate(a.date) - parsedDate(b.date);
+      }
+      else if(sortOrder === '최신등록순'){
+        return Number(b.id) - Number(a.id);
+      }
+    })
 
     return newSortList;
   }, [todo, sortOrder]);
