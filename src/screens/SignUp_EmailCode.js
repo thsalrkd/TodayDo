@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Keyboard, TouchableWithoutFeedback } from 'react-native';
 
-export default function SignUpEmail({ navigation }) {
-  const [email, setEmail] = useState('');
+export default function SignUpEmailCode({ navigation, route }) {
+  const { email } = route.params;
+  const [code, setCode] = useState('');
 
   const totalSteps = 3; //회원가입 총 단계 
   const currentStep = 1; //회원가입 현재 단계
@@ -16,23 +17,29 @@ export default function SignUpEmail({ navigation }) {
         </View>
 
         <View style={styles.inputContainer}>
-          <Text style={styles.label}>이메일 입력</Text>
+          <Text style={styles.emailText}>{email}로 인증코드를 전송했습니다.</Text>
+          <Text style={styles.label}>이메일 인증코드 입력</Text>
           <TextInput
             style={styles.input}
-            placeholder="e-mail"
-            placeholderTextColor="#bbb"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
+            keyboardType="numeric"     // 숫자 키보드 사용
+            maxLength={5}              // 입력 가능한 최대 글자 수 (예: 6자리 코드)
+            onChangeText={setCode}     // 입력값 상태 관리 (setCode는 useState의 상태 변경 함수)
+            value={code}
           />
+          <TouchableOpacity onPress={() => {
+            //인증코드 재전송 코드 추가 예정
+          }}>
+            <Text style={styles.resend}>재전송</Text>
+          </TouchableOpacity>
         </View>
 
         <TouchableOpacity
-          style={[styles.button, !email && styles.buttonDisabled]}
-          disabled={!email}
+          style={[styles.button, !code && styles.buttonDisabled]}
+          disabled={!code}
           onPress={() => {
-            navigation.navigate('SignUpEmailCode', { email });
+            // 이메일 유효성 검사 추가 가능
+            // 다음 화면으로 이동 등
+            navigation.navigate('SignUpPW', { code });
           }}
         >
           <Text style={styles.buttonText}>계속</Text>
@@ -42,7 +49,7 @@ export default function SignUpEmail({ navigation }) {
   );
 }
 
-export const styles = StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f9f9f9',
@@ -63,8 +70,12 @@ export const styles = StyleSheet.create({
   },
   inputContainer: {
     marginBottom: 20,
-    marginTop: 30,
+    marginTop: 5,
     paddingHorizontal: 15,
+  },
+  emailText: {
+    marginBottom: 8,
+    color: '#8f8f8fff',
   },
   label: {
     fontSize: 18,
@@ -78,6 +89,11 @@ export const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
   },
+  resend: {
+    textAlign: 'right',
+    color: '#4a90e2',
+    marginTop: 10,
+  },
   button: {
     backgroundColor: '#4a90e2',
     paddingVertical: 12,
@@ -85,7 +101,7 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     width: 80,
     alignSelf: 'center',
-    marginTop: 50,
+    marginTop: 25,
   },
   buttonDisabled: {
     backgroundColor: '#ccc',
