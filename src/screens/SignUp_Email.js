@@ -84,7 +84,7 @@ export const styles = StyleSheet.create({
   label: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 8,
+    marginBottom: 20,
   },
   input: {
     borderBottomWidth: 1,

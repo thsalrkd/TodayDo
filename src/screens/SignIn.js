@@ -45,6 +45,20 @@ export default function SignIn({ navigation }) {
           >
             <NoScaleText style={styles.buttonText}>로그인</NoScaleText>
           </TouchableOpacity>
+
+          <View style={styles.dividerContainer}>
+            <View style={styles.line} />
+             <NoScaleText style={styles.dividerText}>또는</NoScaleText>
+            <View style={styles.line} />
+          </View>
+
+          <TouchableOpacity 
+            onPress={() => {
+              navigation.navigate('ForgotPWEmail', { email }, {pw});
+            }}
+          >
+            <NoScaleText style={styles.findpwtext}>비밀번호를 잊어버리셨나요?</NoScaleText>
+          </TouchableOpacity>
         </View>
       </View>
     </TouchableWithoutFeedback>
@@ -111,5 +125,29 @@ export const styles = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontWeight: 'bold',
+  },
+  dividerContainer: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  marginTop: 30,
+  marginBottom: 10,
+  alignSelf: 'center',
+  },
+  line: {
+    width: 140,
+    height: 1,
+    backgroundColor: '#ddddddff',
+    borderRadius: 1,
+  },
+
+  dividerText: {
+    marginHorizontal: 10,
+    fontSize: 14,
+    color: '#777',
+  },
+  findpwtext: {
+    color: '#3A9CFF',
+    alignSelf: 'center',
+    marginTop: 30,
   },
 });

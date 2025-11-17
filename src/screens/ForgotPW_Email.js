@@ -2,38 +2,32 @@ import React, { useState } from 'react';
 import { NoScaleText, NoScaleTextInput } from '../components/NoScaleText';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Keyboard, TouchableWithoutFeedback } from 'react-native';
 
-export default function SignUpName({ navigation }) {
-  const [nickname, setNickname] = useState('');
-
-  const totalSteps = 3; // 회원가입 총 단계
-  const currentStep = 3; // 현재 단계
-  const progressWidth = `${(currentStep / totalSteps) * 100}%`; // 진행바 길이
+export default function ForgotPWEmail({ navigation }) {
+  const [email, setEmail] = useState('');
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
       <View style={{ flex: 1, backgroundColor: '#fff' }}>
         <View style={styles.container}>
-          <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: progressWidth }]} />
-          </View>
 
           <View style={styles.inputContainer}>
-            <NoScaleText style={styles.label}>닉네임 입력</NoScaleText>
+            <NoScaleText style={styles.label}>이메일 입력</NoScaleText>
             <NoScaleTextInput
               style={styles.input}
-              placeholder="닉네임"
+              placeholder="e-mail"
               placeholderTextColor="#bbb"
-              value={nickname}
-              onChangeText={setNickname}
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
               autoCapitalize="none"
             />
           </View>
 
           <TouchableOpacity
-            style={[styles.button, !nickname && styles.buttonDisabled]}
-            disabled={!nickname}
+            style={[styles.button, !email && styles.buttonDisabled]}
+            disabled={!email}
             onPress={() => {
-              navigation.navigate('SignUpFin', { nickname });
+              navigation.navigate('ForgotPWEmailCode', { email });
             }}
           >
             <NoScaleText style={styles.buttonText}>계속</NoScaleText>
@@ -44,7 +38,7 @@ export default function SignUpName({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+export const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f9f9f9',
@@ -54,26 +48,14 @@ const styles = StyleSheet.create({
     paddingTop: 40,
     marginTop: 8,
 
-    // iOS 그림자
+    //iOS 그림자 속성
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.5,
     shadowRadius: 6,
 
-    // Android 그림자
+    //Android 그림자 속성
     elevation: 6,
-  },
-  progressBar: {
-    height: 3,
-    backgroundColor: '#ddd',
-    borderRadius: 2,
-    overflow: 'hidden',
-    marginBottom: 30,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#3A9CFF',
-    borderRadius: 2,
   },
   inputContainer: {
     marginBottom: 20,

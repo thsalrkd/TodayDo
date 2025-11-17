@@ -28,9 +28,10 @@ export default function SignUpEmailCode({ navigation, route }) {
               onChangeText={setCode}
               value={code}
             />
-            <TouchableOpacity onPress={() => {
+            <TouchableOpacity 
+              onPress={() => {
               // 인증코드 재전송 기능 추가 예정
-            }}>
+              }}>
               <NoScaleText style={styles.resend}>재전송</NoScaleText>
             </TouchableOpacity>
           </View>
@@ -93,7 +94,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 8,
+    marginBottom: 20,
   },
   input: {
     borderBottomWidth: 1,

@@ -2,38 +2,38 @@ import React, { useState } from 'react';
 import { NoScaleText, NoScaleTextInput } from '../components/NoScaleText';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Keyboard, TouchableWithoutFeedback } from 'react-native';
 
-export default function SignUpName({ navigation }) {
-  const [nickname, setNickname] = useState('');
-
-  const totalSteps = 3; // 회원가입 총 단계
-  const currentStep = 3; // 현재 단계
-  const progressWidth = `${(currentStep / totalSteps) * 100}%`; // 진행바 길이
+export default function ForgotPWEmailCode({ navigation, route }) {
+  const { email } = route.params;
+  const [code, setCode] = useState('');
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
       <View style={{ flex: 1, backgroundColor: '#fff' }}>
         <View style={styles.container}>
-          <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: progressWidth }]} />
-          </View>
 
           <View style={styles.inputContainer}>
-            <NoScaleText style={styles.label}>닉네임 입력</NoScaleText>
+            <NoScaleText style={styles.emailText}>{email}로 인증코드를 전송했습니다.</NoScaleText>
+            <NoScaleText style={styles.label}>이메일 인증코드 입력</NoScaleText>
             <NoScaleTextInput
               style={styles.input}
-              placeholder="닉네임"
-              placeholderTextColor="#bbb"
-              value={nickname}
-              onChangeText={setNickname}
-              autoCapitalize="none"
+              keyboardType="numeric"
+              maxLength={5}
+              onChangeText={setCode}
+              value={code}
             />
+            <TouchableOpacity 
+              onPress={() => {
+              // 인증코드 재전송 기능 추가 예정
+              }}>
+              <NoScaleText style={styles.resend}>재전송</NoScaleText>
+            </TouchableOpacity>
           </View>
 
           <TouchableOpacity
-            style={[styles.button, !nickname && styles.buttonDisabled]}
-            disabled={!nickname}
+            style={[styles.button, !code && styles.buttonDisabled]}
+            disabled={!code}
             onPress={() => {
-              navigation.navigate('SignUpFin', { nickname });
+              //navigation.navigate('SignUpPW', { code });
             }}
           >
             <NoScaleText style={styles.buttonText}>계속</NoScaleText>
@@ -63,22 +63,14 @@ const styles = StyleSheet.create({
     // Android 그림자
     elevation: 6,
   },
-  progressBar: {
-    height: 3,
-    backgroundColor: '#ddd',
-    borderRadius: 2,
-    overflow: 'hidden',
-    marginBottom: 30,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#3A9CFF',
-    borderRadius: 2,
-  },
   inputContainer: {
     marginBottom: 20,
-    marginTop: 30,
+    marginTop: 5,
     paddingHorizontal: 15,
+  },
+  emailText: {
+    marginBottom: 8,
+    color: '#8f8f8fff',
   },
   label: {
     fontSize: 18,
@@ -92,6 +84,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
   },
+  resend: {
+    textAlign: 'right',
+    color: '#4a90e2',
+    marginTop: 10,
+  },
   button: {
     backgroundColor: '#3A9CFF',
     paddingVertical: 12,
@@ -99,7 +96,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: 80,
     alignSelf: 'center',
-    marginTop: 50,
+    marginTop: 25,
   },
   buttonDisabled: {
     backgroundColor: '#ccc',
