@@ -96,13 +96,13 @@ const styles = StyleSheet.create({
   label1: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 8,
+    marginBottom: 20,
   },
   label2: {
     fontSize: 18,
     fontWeight: 'bold',
     marginTop: 40,
-    marginBottom: 8,
+    marginBottom: 20,
   },
   input: {
     borderBottomWidth: 1,

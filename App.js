@@ -10,6 +10,8 @@ import SignUpPW from './src/screens/SignUp_PW';
 import SignUpName from './src/screens/SignUp_Name';
 import SignUpFin from './src/screens/SignUp_Fin';
 import SignIn from './src/screens/SignIn';
+import ForgotPWEmail from './src/screens/ForgotPW_Email';
+import ForgotPWEmailCode from './src/screens/ForgotPW_EmailCode';
 import BottomNavigator from './src/navigation/BottomNavigator';
 
 const Stack = createNativeStackNavigator();
@@ -73,6 +75,26 @@ export default function App() {
           component={SignIn}
           options={({ navigation }) => ({
             title: '로그인',
+            headerLeft: () => <BackButton onPress={() => navigation.goBack()} />,
+            headerShown: true,
+            headerShadowVisible: false,
+          })}
+        />
+        <Stack.Screen
+          name="ForgotPWEmail"
+          component={ForgotPWEmail}
+          options={({ navigation }) => ({
+            title: '계정복구',
+            headerLeft: () => <BackButton onPress={() => navigation.goBack()} />,
+            headerShown: true,
+            headerShadowVisible: false,
+          })}
+        />
+        <Stack.Screen
+          name="ForgotPWEmailCode"
+          component={ForgotPWEmailCode}
+          options={({ navigation }) => ({
+            title: '계정복구',
             headerLeft: () => <BackButton onPress={() => navigation.goBack()} />,
             headerShown: true,
             headerShadowVisible: false,
