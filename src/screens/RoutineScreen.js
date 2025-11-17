@@ -6,7 +6,8 @@ import Ionicons from '@expo/vector-icons/Ionicons'
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { Calendar } from 'react-native-calendars';
-import DateTimePickerModal from 'react-native-modal-datetime-picker';
+
+import CustomTimePicker from '../components/CustomTimePicker';
 
 const DATA = [
   {id: '1', title: '루틴 1', date: '2025.11.11', completed: false, important: false, remind: true, repeated: true},
@@ -248,29 +249,25 @@ export default function RoutineScreen(){
   }
 
   const handleDateSelect = (day) => {
+    setCalendarVisible(false);
     if (editItem) {
       setEditItem(prev => ({
         ...prev,
         date: day.dateString.replace(/-/g, '.')
       }));
     }
-    setCalendarVisible(false);
     setTimePickerVisible(true);
   }
 
-  const handleCheckTime = (selectedTime) => {
-    const hour = String(selectedTime.getHours()).padStart(2, '0');
-    const minute = String(selectedTime.getMinutes()).padStart(2, '0');
-    const timeString = `${hour}:${minute}`;
-
+  const handleTimeChange = (time) => {
+    const timeString = `${time.ampm} ${time.hour}:${time.minute}`
     if(editItem){
       setEditItem(prev => ({
         ...prev,
-        date: prev.date.split(' ')[0] + `${timeString}`
+        time: timeString
       }));
     }
-    setTimePickerVisible(false);
-  }
+  };
 
   const handleCancelTimePicker = () => {
     setTimePickerVisible(false);
@@ -287,7 +284,8 @@ export default function RoutineScreen(){
       id: String(Date.now()), 
       title: '',
       date: today_date,
-      completed: false, important: false, remind: false, repeated: false
+      completed: false, important: false, remind: false, repeated: false,
+      time: 'AM 01:00'
     };
     setEditItem(newRoutine);
     setEditorVisible(true);
@@ -369,70 +367,87 @@ export default function RoutineScreen(){
         </View>
       </Modal>
 
-      <Modal 
-          transparent={true} 
-          visible={isTimePickerVisible} 
-          animationType="fade"
-          onRequestClose={() => setTimePickerVisible(false)}
+      <Modal
+        statusBarTranslucent
+        transparent={true}
+        visible={isTimePickerVisible}
+        animationType="fade"
+        onRequestClose={() => setTimePickerVisible(false)}
+      >
+        <TouchableOpacity 
+          style={styles.modalBackdrop} 
+          activeOpacity={1}
         >
-            <View style={styles.modalContent}>
-              <DateTimePickerModal
-                isVisible={isTimePickerVisible}
-                mode='time'
-                is24Hour={true}
-                onConfirm={handleCheckTime}
-                onCancel={handleCancelTimePicker}
-              />
+          <View style={styles.pickerModalContent}>
+            <NoScaleText style={{color: '#000000', fontSize: 20, alignItems: 'left'}}>시간</NoScaleText>
+            <CustomTimePicker
+              itemHeight={40}
+              onTimeChange={handleTimeChange}
+            />
+            <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end'}}>
+              <TouchableOpacity 
+                style={[styles.modalButton,{marginRight: 15}]}
+                onPress={handleCancelTimePicker}
+              >
+                <NoScaleText style={{color: '#595959', fontSize: 16}}>취소</NoScaleText>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.modalButton,{marginRight: 15}]}
+                onPress={handleCancelTimePicker}
+              >
+                <NoScaleText style={{color: '#3A9CFF', fontSize: 16}}>확인</NoScaleText>
+              </TouchableOpacity>
             </View>
-        </Modal>
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       <Modal transparent={true} animationType='fade' visible={isEditorVisible} onRequestClose={handleCloseEditor}
         statusBarTranslucent>
-          <KeyboardAvoidingView
-            style={styles.editorBackdrop} >
-
-          <TouchableOpacity 
-            style={{flex: 1}} 
-            activeOpacity={1} 
-            onPress={handleCloseEditor} 
-          />
-          
-            <View style={styles.editorContent}>
-              {editItem && (
-                <>
-                  <NoScaleTextInput
-                    value={editItem.title}
-                    onChangeText={(text) => setEditItem(prev => ({...prev, title: text}))}
-                    placeholder="새 루틴"
-                    style={styles.editorInput}
-                    autoFocus={true}
-                  />
-                  
-                  <View style={styles.editorButtonRow}>
-                    <TouchableOpacity onPress={() => alert('태그')} style={styles.editorBtn}>
-                      <MaterialIcons name="label-outline" size={15} color="gray"/>
-                      <NoScaleText style={styles.editorText}>태그</NoScaleText>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => setCalendarVisible(true)} style={styles.editorBtn}>
-                      <Ionicons name="calendar-clear-outline" size={15} color="gray"/>
-                      <NoScaleText style={styles.editorText}>날짜</NoScaleText>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => alert('알림')} style={styles.editorBtn}>
-                      <Ionicons name="notifications-outline" size={15} color="gray"/>
-                      <NoScaleText style={styles.editorText}>알림</NoScaleText>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => alert('반복')} style={styles.editorBtn}>
-                      <Ionicons name="repeat-outline" size={15} color="gray"/>
-                      <NoScaleText style={styles.editorText}>반복</NoScaleText>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={handleSaveRoutine}>
-                      <Ionicons name="checkmark-circle" size={35} color="#CDCDCD"/>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              )}
+        <TouchableOpacity 
+          style={styles.modalBackdrop} 
+          activeOpacity={1} 
+          onPress={handleCloseEditor}>
+        
+          <View style={styles.editorContent}>
+            {editItem && (
+              <>
+                <NoScaleTextInput
+                  value={editItem.title}
+                  onChangeText={(text) => setEditItem(prev => ({...prev, title: text}))}
+                  placeholder="새 루틴"
+                  style={styles.editorInput}
+                  autoFocus={true}
+                />
+                
+                <View style={styles.editorButtonRow}>
+                  <TouchableOpacity onPress={() => alert('태그')} style={styles.editorBtn}>
+                    <MaterialIcons name="label-outline" size={15} color="gray"/>
+                    <NoScaleText style={styles.editorText}>태그</NoScaleText>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setCalendarVisible(true)} style={styles.editorBtn}>
+                    <Ionicons name="calendar-clear-outline" size={15} color="gray"/>
+                    <NoScaleText style={styles.editorText}>날짜</NoScaleText>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => alert('알림')} style={styles.editorBtn}>
+                    <Ionicons name="notifications-outline" size={15} color="gray"/>
+                    <NoScaleText style={styles.editorText}>알림</NoScaleText>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => alert('반복')} style={styles.editorBtn}>
+                    <Ionicons name="repeat-outline" size={15} color="gray"/>
+                    <NoScaleText style={styles.editorText}>반복</NoScaleText>
+                  </TouchableOpacity>
+                </View>
+                
+                <TouchableOpacity onPress={handleSaveRoutine} style={{alignItems: 'center', marginTop:5}}>
+                    <NoScaleText style={{fontSize: 15, width: '90%', backgroundColor: '#3A9CFF', borderRadius: 30, textAlign: 'center', padding: 5, color: '#ffffff',}}>
+                      완료
+                    </NoScaleText>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
-          </KeyboardAvoidingView>
+        </TouchableOpacity>
       </Modal>
 
       {!isDelete && (
@@ -621,8 +636,7 @@ const styles = StyleSheet.create({
   },
   editorContent: {
     backgroundColor: 'white',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderRadius: 20,
     padding: 20,
     elevation: 10,
     shadowColor: '#000',
@@ -647,6 +661,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     borderRadius: 30,
     padding: 10,
+    marginLeft: 2,
+    marginRight: 2,
     alignItems: 'center',
   },
   editorText: {
@@ -659,5 +675,11 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 10,
     margin: 20,
+  },
+  pickerModalContent: {
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 16,
+    width: '80%',
   }
 });
