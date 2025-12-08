@@ -30,12 +30,12 @@ const DATA = [
 ];
 
 const TAGS_DATA = [
-  { id: 't1', name: '운동', selected: false, subTags: [ {id: 's1', name: '헬스', selected: false} ] },
-  { id: 't2', name: '공부', selected: false, subTags: [] },
-  { id: 't3', name: '청소', selected: false, subTags: [] },
-  { id: 't4', name: '빨래', selected: false, subTags: [] },
-  { id: 't5', name: '서점', selected: false, subTags: [] },
-  { id: 't6', name: '알바', selected: false, subTags: [] },
+  { id: 't1', name: '운동', selected: false },
+  { id: 't2', name: '공부', selected: false },
+  { id: 't3', name: '청소', selected: false },
+  { id: 't4', name: '빨래', selected: false },
+  { id: 't5', name: '서점', selected: false },
+  { id: 't6', name: '알바', selected: false },
 ];
 
 // 개별 루틴
@@ -629,14 +629,7 @@ export default function RoutineScreen(){
         filtered = filtered.filter(item => item.date === todayString);
       } 
       else if (activeFilter.type === 'tag') {
-        const parentTag = tags.find(t => t.name === activeFilter.value);
-        const targetTags = [activeFilter.value];
-
-        if (parentTag && parentTag.subTags) {
-          parentTag.subTags.forEach(sub => targetTags.push(sub.name));
-        }
-        
-        filtered = filtered.filter(item => targetTags.includes(item.tag));
+        filtered = filtered.filter(item => item.tag === activeFilter.value);
       }
     }
 
@@ -727,9 +720,7 @@ export default function RoutineScreen(){
       subSteps: []
     };
     setTags(prev => prev.map(t => ({
-      ...t, selected: false, subTags: t.subTags.map(s => ({
-        ...s, selected: false
-      }))
+      ...t, selected: false
     })));
 
     setEditItem(newRoutine);
@@ -869,34 +860,15 @@ export default function RoutineScreen(){
 
     // 태그 선택 상태 초기화 및 현재 태그 반영
     const currentTagName = detailItem.tag;
-    const getInitializedTags = (list) => {
-      const resetTags = list.map(t => ({
-        ...t,
-        selected: false,
-        subTags: t.subTags.map(s => ({ ...s, selected: false }))
-      }));
-
-      if (!currentTagName || currentTagName === '태그'){
-        return resetTags;
-      }
-
-      const parentIndex = resetTags.findIndex(t => t.name === currentTagName);
-      if (parentIndex !== -1) {
-        resetTags[parentIndex].selected = true;
-        return resetTags;
-      }
-      return resetTags.map(t => ({
-        ...t,
-        subTags: t.subTags.map(s => s.name === currentTagName ? { ...s, selected: true } : s)
-      }));
-    };
-
-    const newTags = getInitializedTags(tags);
+    const newTags = tags.map(t => ({
+      ...t,
+      selected: t.name === currentTagName
+    }));
     setTags(newTags);
     
     // 취소 시 복구를 위한 백업
     setBackupTags(JSON.parse(JSON.stringify(newTags)));
-    setBackupEditTag(detailItem.tag || null);
+    if(detailItem) setBackupEditTag(detailItem.tag || null);
 
     if (target === 'tag') {
         setTimeout(() => {
@@ -1133,37 +1105,24 @@ export default function RoutineScreen(){
   };
 
   const handleToggleTag = (tagId) => {
-    let selectedTag = '태그';
-
     setTags(prevTags => {
-        const resetTags = prevTags.map(t => ({
-            ...t,
-            selected: false,
-            subTags: t.subTags.map(s => ({ ...s, selected: false }))
+      const targetTag = prevTags.find(t => t.id === tagId);
+      const isAlreadySelected = targetTag?.selected;
+      const shouldSelect = !isAlreadySelected;
+      const newTagName = shouldSelect ? targetTag.name : null;
+
+      if(editItem){
+        setEditItem(prev => ({
+          ...prev, 
+          tag: newTagName
         }));
+      }
 
-        const parentIndex = resetTags.findIndex(t => t.id === tagId);
-        if (parentIndex !== -1) {
-            resetTags[parentIndex].selected = true;
-            selectedTag = resetTags[parentIndex].name;
-            return resetTags;
-        }
-
-        const newTags = resetTags.map(t => {
-          const subIndex = t.subTags.findIndex(s => s.id === tagId);
-          if(subIndex !== -1){
-            selectedTag = t.subTags[subIndex].name;
-            return { ...t, subTags: t.subTags.map(s => s.id === tagId ? { ...s, selected: true } : s) };
-          }
-          return t;
-        });
-        return newTags;
-    });
-    if(editItem){
-      setEditItem(prev => ({
-        ...prev, tag: selectedTag !== '태그' ? selectedTag : null
+      return prevTags.map(t => ({
+        ...t,
+        selected: t.id === tagId ? shouldSelect : false
       }));
-    }
+    });
   };
 
   const startAddTag = (type, parentId = null) => {
@@ -1181,15 +1140,7 @@ export default function RoutineScreen(){
     }
     
     // 중복 이름 체크
-    const isDuplicate = tags.some(tag => {
-      if (tag.name === tagNameToCheck) return true;
-      
-      if (tag.subTags && tag.subTags.some(sub => sub.name === tagNameToCheck)) {
-        return true;
-      }
-      
-      return false;
-    });
+    const isDuplicate = tags.some(tag => tag.name === tagNameToCheck);
 
     if (isDuplicate) {
       Alert.alert("알림", "이미 존재하는 태그 이름입니다.");
@@ -1203,24 +1154,8 @@ export default function RoutineScreen(){
       const resetTags = prevTags.map(t => ({
         ...t,
         selected: false,
-        subTags: t.subTags.map(s => ({ ...s, selected: false }))
       }));
-
-      if (addTagMode.type === 'parent') {
-        return [...resetTags, { id: newId, name: newTagName, selected: true, subTags: [] }];
-      } 
-      else if (addTagMode.type === 'child') {
-        return resetTags.map(t => {
-          if (t.id === addTagMode.parentId) {
-            return {
-              ...t,
-              subTags: [...t.subTags, { id: newId, name: newTagName, selected: true }]
-            };
-          }
-          return t;
-        });
-      }
-      return resetTags;
+      return [...resetTags, { id: newId, name: newTagName, selected: true }];
     });
 
     if(editItem){
@@ -1647,7 +1582,9 @@ export default function RoutineScreen(){
                       <Ionicons name="repeat-outline" size={20} color="#555" style={{width: 30}} />
                       <NoScaleText style={styles.metaText}>
                         {(detailItem.repeated && detailItem.repeated.days) 
-                          ? detailItem.repeated.days.join(', ') 
+                          ? [...detailItem.repeated.days]
+                            .sort((a, b) => DAYS.indexOf(a) - DAYS.indexOf(b))
+                            .join(', ') 
                           : '없음'
                         }
                         {detailItem.repeated?.endDate ? `, ${detailItem.repeated.endDate} 까지` : ''}
@@ -1921,43 +1858,12 @@ export default function RoutineScreen(){
               <ScrollView>
                 {tags.map((tag) => (
                    <View key={tag.id} style={{marginBottom: 15}}>
-                      <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'}}>
-                         <TouchableOpacity onPress={() => handleToggleTag(tag.id)} style={{flexDirection: 'row', alignItems: 'center'}}>
+                      <TouchableOpacity onPress={() => handleToggleTag(tag.id)} style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'}}>
+                         <View style={{flexDirection: 'row', alignItems: 'center'}}>
                             <MaterialIcons name={tag.selected ? "label" : "label-outline"} size={20} color={tag.selected ? "#3A9CFF" : "gray"} />
                             <NoScaleText style={{marginLeft: 10, fontSize: 16, color: tag.selected ? "#3A9CFF" : "#000"}}>{tag.name}</NoScaleText>
-                         </TouchableOpacity>
-                      </View>
-
-                      {tag.subTags.map(sub => (
-                         <View key={sub.id} style={{flexDirection: 'row', alignItems: 'center', marginLeft: 30, marginTop: 8}}>
-                            <TouchableOpacity onPress={() => handleToggleTag(sub.id, true, tag.id)} style={{flexDirection: 'row', alignItems: 'center'}}>
-                               <MaterialIcons name={sub.selected ? "label" : "label-outline"} size={18} color={sub.selected ? "#3A9CFF" : "gray"} />
-                               <NoScaleText style={{marginLeft: 10, fontSize: 14, color: sub.selected ? "#3A9CFF" : "#555"}}>{sub.name}</NoScaleText>
-                            </TouchableOpacity>
                          </View>
-                      ))}
-
-                      <View style={{marginLeft: 30, marginTop: 8}}>
-                        {addTagMode.type === 'child' && addTagMode.parentId === tag.id ? (
-                           <View style={{flexDirection: 'row', alignItems: 'center'}}>
-                              <NoScaleTextInput 
-                                 style={styles.tagInput} 
-                                 placeholder="하위 태그 이름" 
-                                 autoFocus 
-                                 value={newTagText}
-                                 onChangeText={setNewTagText}
-                                 onSubmitEditing={saveNewTag}
-                              />
-                              <TouchableOpacity onPress={saveNewTag}>
-                                 <Ionicons name="checkmark-circle" size={24} color="#3A9CFF" style={{marginLeft: 5}} />
-                              </TouchableOpacity>
-                           </View>
-                        ) : (
-                           <TouchableOpacity onPress={() => startAddTag('child', tag.id)}>
-                              <NoScaleText style={{color: '#3A9CFF', fontSize: 12}}>+ 하위 태그 추가</NoScaleText>
-                           </TouchableOpacity>
-                        )}
-                      </View>
+                      </TouchableOpacity>
                    </View>
                 ))}
               </ScrollView>

@@ -11,22 +11,30 @@ import ProgressBar from 'react-native-progress/Bar';
 
 import { useNavigation } from '@react-navigation/native';
 
+const USER_DATA = {
+  name: 'User',
+  title: '처음 날개 단 병아리!',
+  exp: 150,
+  maxExp: 300,
+  level: 1,
+}
+
 const DATA = {
   todo: [
-    { id: 't1', text: '할 일 5', completed: false, date: '2025.12.02', remind: true, repeated: false },
-    { id: 't2', text: '할 일 6', completed: false, date: '2025.12.02', remind: false, repeated: true },
-    { id: 't3', text: '지난 할 일', completed: true, date: '2025.12.01', remind: false, repeated: false },
-    { id: 't4', text: '오늘 완료한 일', completed: true, date: '2025.12.02', remind: true, repeated: true },
+    { id: 't1', text: '할 일 5', completed: false, date: '2025.12.02', remind: true, repeated: false, expGiven: false },
+    { id: 't2', text: '할 일 6', completed: false, date: '2025.12.02', remind: false, repeated: true, expGiven: false },
+    { id: 't3', text: '지난 할 일', completed: true, date: '2025.12.01', remind: false, repeated: false, expGiven: true },
+    { id: 't4', text: '오늘 완료한 일', completed: true, date: '2025.12.02', remind: true, repeated: true, expGiven: true },
   ],
   routine: [
-    { id: 'r1', text: '루틴 5', completed: false, date: '2025.12.02', remind: true, repeated: true },
-    { id: 'r2', text: '루틴 6', completed: false, date: '2025.12.02', remind: false, repeated: false },
-    { id: 'r3', text: '루틴 7', completed: false, date: '2025.12.02', remind: true, repeated: false },
-    { id: 'r4', text: '루틴 8', completed: false, date: '2025.12.02', remind: false, repeated: true },
+    { id: 'r1', text: '루틴 5', completed: false, date: '2025.12.02', remind: true, repeated: true, expGiven: false },
+    { id: 'r2', text: '루틴 6', completed: false, date: '2025.12.02', remind: false, repeated: false, expGiven: false },
+    { id: 'r3', text: '루틴 7', completed: false, date: '2025.12.02', remind: true, repeated: false, expGiven: false },
+    { id: 'r4', text: '루틴 8', completed: false, date: '2025.12.02', remind: false, repeated: true, expGiven: false },
   ],
   record: [
-    { id: 'rec1', text: '오늘의 기록', completed: false, date: '2025.12.02' },
-    { id: 'rec2', text: '오늘의 색', completed: false, date: '2025.12.02' },
+    { id: 'rec1', text: '오늘의 기록', completed: false, date: '2025.12.02', expGiven: false },
+    { id: 'rec2', text: '오늘의 색', completed: false, date: '2025.12.02', expGiven: false },
   ]
 };
 
@@ -39,8 +47,9 @@ const getFormattedDate = (date) => {
 };
 
 // 상단 헤더 컴포넌트, 프로필 이미지, 환영 메시지, 경험치바, 알림 버튼 표시
-function HomeHeader() {
+function HomeHeader({user}) {
   const navigation = useNavigation();
+  const progress = user.maxExp > 0 ? user.exp / user.maxExp : 0;
 
   return (
     <View style={styles.header}>
@@ -48,12 +57,12 @@ function HomeHeader() {
         <Image/>
         <Ionicons name="person" size={24} color='gray' style={styles.profileImage}/>
         <View style={styles.profileText}>
-          <NoScaleText style={{fontSize: 10}}>처음 날개 단 병아리!</NoScaleText>
-          <NoScaleText>User님 환영합니다!</NoScaleText>
+          <NoScaleText style={{fontSize: 10}}>{user.title}</NoScaleText>
+          <NoScaleText>{user.name}님 환영합니다!</NoScaleText>
 
           <View style={{flexDirection: 'row', alignItems: 'center'}}>
-            <ProgressBar progress={0.5} width={200} style={{marginRight: 5}} />
-            <NoScaleText style={{fontSize: 9, color: "#8D8D8D"}}>150/300px</NoScaleText>
+            <ProgressBar progress={progress} width={200} style={{marginRight: 5}} />
+            <NoScaleText style={{fontSize: 9, color: "#8D8D8D"}}>{user.exp}/{user.maxExp}px</NoScaleText>
           </View>
         </View>
       </View>
@@ -327,6 +336,7 @@ export default function HomeScreen(){
   const [selectedDate, setSelectedDate] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
   const [allData, setAllData] = useState(DATA);
+  const [user, setUser] = useState(USER_DATA);
 
   const today = new Date();
   const currentYear = today.getFullYear();
@@ -400,6 +410,8 @@ export default function HomeScreen(){
 
   // 모달에서 수정된 내용을 메인 데이터에 반영
   const handleSaveChanges = (modifiedModalData) => {
+    let getExp = 0;
+
     setAllData(prev => {
       const newData = { ...prev };
       
@@ -407,16 +419,52 @@ export default function HomeScreen(){
         if (modifiedModalData[section]) {
           modifiedModalData[section].forEach(modifiedItem => {
             const index = newData[section].findIndex(item => item.id === modifiedItem.id);
-            
+            const reward = section === 'record' ? 10 : 20;
+
             // 기존에 있는 항목이면 업데이트, 없으면 추가
             if (index !== -1) {
+              const oldItem = newData[section][index];
+                if (modifiedItem.completed && !oldItem.expGiven) {
+                    modifiedItem.expGiven = true;
+                    getExp += reward;  // 경험치 추가
+                }
+
               newData[section][index] = modifiedItem;
             } else {
+              if (modifiedItem.completed) {
+                  modifiedItem.expGiven = true;
+                  getExp += reward;  // 경험치 추가
+              } else {
+                  modifiedItem.expGiven = false;
+            }
               newData[section].push(modifiedItem);
             }
           });
         }
       });
+
+      if (getExp > 0) {
+        setUser(prevUser => {
+          let newExp = prevUser.exp + getExp;
+          let newLevel = prevUser.level;
+          let newMaxExp = prevUser.maxExp;
+          let isLevelUp = false;
+
+          while (newExp >= newMaxExp) { // 여러 레벨 상승
+            newExp -= newMaxExp;
+            newLevel += 1;
+            newMaxExp += 200;
+            isLevelUp = true;
+          }
+          return { 
+            ...prevUser, 
+            exp: newExp, 
+            level: newLevel, 
+            maxExp: newMaxExp 
+          };
+        });
+      }
+
       return newData;
     });
     setModalVisible(false);
@@ -426,7 +474,7 @@ export default function HomeScreen(){
     <SafeAreaProvider>
       <SafeAreaView style={styles.allArea}>
         <ScrollView>
-          <HomeHeader/>
+          <HomeHeader user={user}/>
           <MonthCalendar
             selectedDate={selectedDate} 
             onDateSelect={dateSelect}
