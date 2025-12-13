@@ -18,7 +18,7 @@ import ForgotPWNewPW from './src/screens/ForgotPW_NewPW';
 import ForgotPWFin from './src/screens/ForgotPW_Fin';
 import AccountManagement from './src/screens/AccountManagement';
 import ChangePW from './src/screens/ChangePW';
-import Social from './src/screens/Social';
+//import Social from './src/screens/Social';
 import NotificationScreen from './src/screens/NotificationScreen';
 import BottomNavigator from './src/navigation/BottomNavigator';
 
