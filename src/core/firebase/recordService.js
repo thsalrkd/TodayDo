@@ -28,6 +28,7 @@ class RecordService {
             (snapshot) => {
                 const records = snapshot.docs.map(doc => ({
                     id: doc.id,
+                    date: doc.id, // id와 date 일치 보장
                     ...doc.data()
                 }));
                 callback(records);
@@ -45,6 +46,7 @@ class RecordService {
             const snapshot = await getDocs(q);
             return snapshot.docs.map(doc => ({
                 id: doc.id,
+                date: doc.id, // id와 date 일치 보장
                 ...doc.data()
             }));
         } catch (error) {
@@ -63,8 +65,8 @@ class RecordService {
             const yearStr = year.toString();
 
             return records.filter(record => {
-                if (!record.date) return false;
-                const [y, m] = record.date.split('.');
+                if (!record.id) return false;
+                const [y, m] = record.id.split('.');
                 return y === yearStr && m === monthStr;
             });
         } catch (error) {
@@ -75,23 +77,31 @@ class RecordService {
 
     /**
      * Record 생성 (신규 추가)
+     * id = date 형식 (예: "2024.03.15")
      */
     async create(userId, recordData) {
         try {
-            if (!recordData.id) {
-                throw new Error('Record ID is required');
+            // date를 id로 사용
+            const recordId = recordData.date || recordData.id;
+            
+            if (!recordId) {
+                throw new Error('Record date is required');
             }
 
-            const docRef = doc(db, 'users', userId, 'records', recordData.id);
+            const docRef = doc(db, 'users', userId, 'records', recordId);
+            
+            // date 필드는 일관성을 위해 저장
+            const { id, ...dataWithoutId } = recordData;
             
             await setDoc(docRef, {
-                ...recordData,
+                ...dataWithoutId,
+                date: recordId, // date 명시적 저장
                 createdAt: Timestamp.now(),
                 updatedAt: Timestamp.now()
             });
             
-            console.log('Record created:', recordData.id);
-            return recordData.id;
+            console.log('Record created:', recordId);
+            return recordId;
         } catch (error) {
             console.error('Create record error:', error);
             throw error;
@@ -100,29 +110,34 @@ class RecordService {
 
     /**
      * Record 업데이트 (기존 항목 수정)
+     * id = date 이므로, date 변경은 불가 (삭제 후 재생성 필요)
      */
     async update(userId, recordData) {
         try {
-            if (!recordData.id) {
-                throw new Error('Record ID is required');
+            const recordId = recordData.date || recordData.id;
+            
+            if (!recordId) {
+                throw new Error('Record date/id is required');
             }
 
-            const docRef = doc(db, 'users', userId, 'records', recordData.id);
+            const docRef = doc(db, 'users', userId, 'records', recordId);
             const docSnap = await getDoc(docRef);
 
             if (!docSnap.exists()) {
                 throw new Error('Record not found');
             }
 
-            const { id, createdAt, ...updateData } = recordData;
+            // id, date, createdAt 제외하고 업데이트
+            const { id, date, createdAt, ...updateData } = recordData;
             
             await updateDoc(docRef, {
                 ...updateData,
+                date: recordId, // date 유지
                 updatedAt: Timestamp.now()
             });
             
-            console.log('Record updated:', recordData.id);
-            return recordData.id;
+            console.log('Record updated:', recordId);
+            return recordId;
         } catch (error) {
             console.error('Update record error:', error);
             throw error;
@@ -130,11 +145,12 @@ class RecordService {
     }
 
     /**
-     * Record 삭제
+     * Record 삭제 (ID로 - date와 동일)
      */
     async delete(userId, recordId) {
         try {
             await deleteDoc(doc(db, 'users', userId, 'records', recordId));
+            console.log('Record deleted:', recordId);
         } catch (error) {
             console.error('Delete record error:', error);
             throw error;
@@ -142,12 +158,12 @@ class RecordService {
     }
 
     /**
-     * 여러 Record 삭제
+     * 여러 Record 삭제 (ID 배열)
      */
     async deleteMany(userId, recordIds) {
         try {
             await Promise.all(
-                recordIds.map(id => deleteDoc(doc(db, 'users', userId, 'records', id)))
+                recordIds.map(id => this.delete(userId, id))
             );
         } catch (error) {
             console.error('Delete many records error:', error);

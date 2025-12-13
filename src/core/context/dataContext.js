@@ -4,10 +4,12 @@ import { useAuth } from './authContext';
 import todoStorage from '../storage/todoStorage';
 import routineStorage from '../storage/routineStorage';
 import recordStorage from '../storage/recordStorage';
+import tagStorage from '../storage/tagStorage';
 import todoService from '../firebase/todoService';
 import routineService from '../firebase/routineService';
 import recordService from '../firebase/recordService';
-import notificationService from '../storage/notificationService';
+import tagService from '../firebase/tagService';
+// import notificationService from '../storage/notificationService';
 
 const DataContext = createContext(null);
 
@@ -16,6 +18,7 @@ export const DataProvider = ({ children }) => {
   const [todos, setTodos] = useState([]);
   const [routines, setRoutines] = useState([]);
   const [records, setRecords] = useState([]);
+  const [tags, setTags] = useState([]);
   const [syncing, setSyncing] = useState(false);
 
   // 동기화 상태 관리
@@ -27,7 +30,7 @@ export const DataProvider = ({ children }) => {
 
   // 낙관적 업데이트 ID 저장 (중복 반영 방지)
   const optimisticUpdates = useRef(new Set());
-  
+
   // 이미 존재하는 항목 추적 (중복 생성 방지)
   const existingItems = useRef(new Set());
 
@@ -37,26 +40,29 @@ export const DataProvider = ({ children }) => {
   // 로컬 데이터 로드
   const loadLocalData = useCallback(async () => {
     try {
-      const [todoList, routineList, recordList] = await Promise.all([
+      const [todoList, routineList, recordList, tagList] = await Promise.all([
         todoStorage.getAll(),
         routineStorage.getAll(),
-        recordStorage.getAll()
+        recordStorage.getAll(),
+        tagStorage.getAll()
       ]);
 
       setTodos(todoList || []);
       setRoutines(routineList || []);
       setRecords(recordList || []);
-      
+      setTags(tagList || []);
+
       // 기존 항목 ID 추적
       existingItems.current.clear();
-      [...(todoList || []), ...(routineList || []), ...(recordList || [])].forEach(item => {
+      [...(todoList || []), ...(routineList || []), ...(recordList || []), ...(tagList || [])].forEach(item => {
         existingItems.current.add(item.id);
       });
 
       console.log('[Data] Local data loaded:', {
         todos: todoList?.length || 0,
         routines: routineList?.length || 0,
-        records: recordList?.length || 0
+        records: recordList?.length || 0,
+        tags: tagList?.length || 0
       });
     } catch (error) {
       console.error('[Data] Load local data error:', error);
@@ -75,37 +81,44 @@ export const DataProvider = ({ children }) => {
     try {
       console.log('[Data] Pulling data from Firebase...');
 
-      const [fbTodos, fbRoutines, fbRecords] = await Promise.all([
+      const [fbTodos, fbRoutines, fbRecords, fbTags] = await Promise.all([
         todoService.getAllByUser(userId),
         routineService.getAllByUser(userId),
-        recordService.getAllByUser(userId)
+        recordService.getAllByUser(userId),
+        tagService.getAllByUser(userId)
       ]);
 
       // Firebase ID를 낙관적 업데이트 세트에 추가 (중복 반영 방지)
       fbTodos.forEach(item => optimisticUpdates.current.add(item.id));
       fbRoutines.forEach(item => optimisticUpdates.current.add(item.id));
       fbRecords.forEach(item => optimisticUpdates.current.add(item.id));
+      fbTags.forEach(item => optimisticUpdates.current.add(item.id));
 
       // clear()를 순차적으로 실행
       await todoStorage.clear();
       await routineStorage.clear();
       await recordStorage.clear();
+      await tagStorage.clear();
 
       // add/save도 순차적으로 실행
       for (const todo of fbTodos) {
-        await todoStorage.add(todo);
+        await todoStorage.sync(todo);
       }
       for (const routine of fbRoutines) {
-        await routineStorage.add(routine);
+        await routineStorage.sync(routine);
       }
       for (const record of fbRecords) {
-        await recordStorage.save(record);
+        await recordStorage.sync(record);
+      }
+      for (const tag of fbTags) {
+        await tagStorage.sync(tag);
       }
 
       console.log('[Data] Data pulled from Firebase:', {
         todos: fbTodos.length,
         routines: fbRoutines.length,
-        records: fbRecords.length
+        records: fbRecords.length,
+        tags: fbTags.length
       });
 
       // 동기화 시각 업데이트
@@ -207,6 +220,12 @@ export const DataProvider = ({ children }) => {
         } else {
           await recordService.update(user.uid, data);
         }
+      } else if (type === 'tag') {
+        if (isNew) {
+          await tagService.create(user.uid, data);
+        } else {
+          await tagService.update(user.uid, data);
+        }
       }
 
       console.log(`✅ ${type} ${isNew ? 'created' : 'updated'} in Firebase:`, data.id);
@@ -235,22 +254,25 @@ export const DataProvider = ({ children }) => {
     }
   }, [user]);
 
-  // 데이터 저장
+  // 데이터 추가
   const saveData = useCallback(async (type, data) => {
     try {
       let savedData;
-      const isNew = !existingItems.current.has(data.id);
-      
+      let isNew;
+
       if (type === 'todo') {
         savedData = await todoStorage.add(data);
+        isNew = true;
       } else if (type === 'routine') {
         savedData = await routineStorage.add(data);
+        isNew = true;
       } else if (type === 'record') {
-        savedData = await recordStorage.save(data);
-      }
-
-      if (savedData.remind) {
-        await notificationService.scheduleTodoReminder(savedData);
+        // record는 date 기준으로 존재 여부 확인 필요함
+        isNew = !existingItems.current.has(data.date);
+        savedData = await recordStorage.save(data); // save는 add/update 자동 판단
+      } else if (type === 'tag') {
+        savedData = await tagStorage.add(data);
+        isNew = true;
       }
 
       // 새 항목이면 추적 세트에 추가
@@ -290,8 +312,10 @@ export const DataProvider = ({ children }) => {
         await routineStorage.delete(id);
       } else if (type === 'record') {
         await recordStorage.delete(id);
+      } else if (type === 'tag') {
+        await tagStorage.delete(id);
       }
-      
+
       // 추적 세트에서 제거
       existingItems.current.delete(id);
 
@@ -309,6 +333,8 @@ export const DataProvider = ({ children }) => {
           await routineService.delete(user.uid, id);
         } else if (type === 'record') {
           await recordService.delete(user.uid, id);
+        } else if (type === 'tag') {
+          await tagService.delete(user.uid, id);
         }
 
         console.log(`[Data] ${type} deleted from Firebase`);
@@ -326,30 +352,32 @@ export const DataProvider = ({ children }) => {
 
   // 데이터 업데이트
   const updateData = useCallback(async (type, id, updates) => {
-    try {
-      let updatedData;
-      if (type === 'todo') {
-        updatedData = await todoStorage.update(id, updates);
-      } else if (type === 'routine') {
-        updatedData = await routineStorage.update(id, updates);
-      } else if (type === 'record') {
-        updatedData = await recordStorage.save({ ...updates, id });
-      }
-
-      await loadLocalData();
-
-      console.log(`[Data] ${type} updated locally (optimistic update)`);
-
-      // 백그라운드에서 Firebase 동기화 (항상 update로 처리)
-      if (user && updatedData) {
-        pushToFirebase(type, updatedData, false);
-      }
-
-    } catch (error) {
-      console.error(`[Data] Update ${type} error:`, error);
-      throw error;
+  try {
+    let updatedData;
+    if (type === 'todo') {
+      updatedData = await todoStorage.update(id, updates);
+    } else if (type === 'routine') {
+      updatedData = await routineStorage.update(id, updates);
+    } else if (type === 'record') {
+      updatedData = await recordStorage.update(id, updates);
+    } else if (type === 'tag') {
+      updatedData = await tagStorage.update(id, updates);
     }
-  }, [user, loadLocalData, pushToFirebase]);
+
+    await loadLocalData();
+
+    console.log(`[Data] ${type} updated locally (optimistic update)`);
+
+    // 백그라운드에서 Firebase 동기화
+    if (user && updatedData) {
+      pushToFirebase(type, updatedData, false);
+    }
+
+  } catch (error) {
+    console.error(`[Data] Update ${type} error:`, error);
+    throw error;
+  }
+}, [user, loadLocalData, pushToFirebase]);
 
   // 수동 동기화
   const refreshData = useCallback(async () => {
@@ -367,6 +395,7 @@ export const DataProvider = ({ children }) => {
     todos,
     routines,
     records,
+    tags,
     syncing,
     syncStatus,
     user,
