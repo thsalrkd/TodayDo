@@ -2,6 +2,10 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { NoScaleText, NoScaleTextInput } from '../components/NoScaleText';
 import { SafeAreaView, View, TouchableOpacity, StyleSheet, FlatList, ScrollView, Alert, Modal, KeyboardAvoidingView, Platform, Keyboard, BackHandler, Switch, TouchableWithoutFeedback } from 'react-native';
 
+import { useData } from '../core/context/dataContext';
+import { useAuth } from '../core/context/authContext';
+import userService from '../core/firebase/userService';
+
 import Ionicons from '@expo/vector-icons/Ionicons'
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
@@ -10,33 +14,6 @@ import { Calendar } from 'react-native-calendars';
 import CustomTimePicker from '../components/CustomTimePicker';
 import AlarmPicker from '../components/AlarmPicker';
 import RepeatPicker from '../components/RepeatPicker';
-
-const DATA = [
-  {id: '1', title: '루틴 1', date: '2025.11.11', completed: false, important: false, remind: { time: '09', cycle: '분', set: '전' }, repeated: { days: ['월', '수'], endDate: null }, tag: '운동', subSteps: [{ id: 's1', title: '준비 운동', completed: true }]},
-  {id: '2', title: '루틴 2', date: '2025.11.10', completed: false, important: false, remind: null, repeated: null, tag: null, subSteps: []},
-  {id: '3', title: '루틴 3', date: '2025.11.12', completed: false, important: false, remind: null, repeated: null, tag: null, subSteps: []},
-  {id: '4', title: '루틴 4', date: '2025.11.08', completed: false, important: false, remind: null, repeated: null, tag: null, subSteps: []},
-  {id: '5', title: '루틴 5', date: '2025.11.22', completed: false, important: false, remind: null, repeated: null, tag: null, subSteps: []},
-  {id: '6', title: '루틴 6', date: '2025.12.08', completed: false, important: false, remind: null, repeated: null, tag: null, subSteps: []},
-  {id: '7', title: '루틴 7', date: '2025.10.09', completed: false, important: false, remind: null, repeated: null, tag: null, subSteps: []},
-  {id: '8', title: '루틴 8', date: '2025.12.03', completed: false, important: false, remind: null, repeated: null, tag: null, subSteps: []},
-  {id: '9', title: '루틴 9', date: '2025.10.15', completed: false, important: false, remind: null, repeated: null, tag: null, subSteps: []},
-  {id: '10', title: '루틴 10', date: '2025.12.11', completed: false, important: false, remind: null, repeated: null, tag: null, subSteps: []},
-  {id: '11', title: '루틴 11', date: '2025.12.11', completed: false, important: false, remind: null, repeated: null, tag: null, subSteps: []},
-  {id: '12', title: '루틴 12', date: '2025.10.09', completed: false, important: false, remind: null, repeated: null, tag: null, subSteps: []},
-  {id: '13', title: '루틴 13', date: '2025.10.09', completed: false, important: false, remind: null, repeated: null, tag: null, subSteps: []},
-  {id: '14', title: '루틴 14', date: '2025.08.12', completed: false, important: false, remind: null, repeated: null, tag: null, subSteps: []},
-  {id: '15', title: '루틴 15', date: '2025.09.08', completed: false, important: false, remind: null, repeated: null, tag: null, subSteps: []},
-];
-
-const TAGS_DATA = [
-  { id: 't1', name: '운동', selected: false },
-  { id: 't2', name: '공부', selected: false },
-  { id: 't3', name: '청소', selected: false },
-  { id: 't4', name: '빨래', selected: false },
-  { id: 't5', name: '서점', selected: false },
-  { id: 't6', name: '알바', selected: false },
-];
 
 // 개별 루틴
 function RoutineItem({item, isDelete, selectedIds, onComplete, onImportant, onPress, onLongPress, onToggleSubStep, onSelect, onLongPressSubStep}){
@@ -104,7 +81,7 @@ function RoutineItem({item, isDelete, selectedIds, onComplete, onImportant, onPr
         )}
       </TouchableOpacity>
 
-      {item.subSteps && item.subSteps.length > 0 && item.subSteps.map((step) => {
+      {item.subs && item.subs.length > 0 && item.subs.map((step) => {
         const subKey = `${item.id}-${step.id}`;
         const isSubSelected = selectedIds.has(subKey);
 
@@ -251,7 +228,8 @@ function RoutineHeader({
 // 메인 화면 컴포넌트, 루틴 목록과 상태 관리
 export default function RoutineScreen(){
   // 데이터 및 기본 UI 상태
-  const [routine, setRoutine] = useState(DATA);
+  const { routines, tags, saveData, updateData, deleteData, refreshData, } = useData();
+  const { user } = useAuth();
   const [isAddSubStep, setIsAddSubStep] = useState(false);
   const [subStepText, setSubStepText] = useState('');
 
@@ -292,65 +270,77 @@ export default function RoutineScreen(){
   const [repeatEndDate, setRepeatEndDate] = useState(null);
 
   // 태그 관리
-  const [tags, setTags] = useState(TAGS_DATA);
   const [isTagVisible, setTagVisible] = useState(false);
   const [addTagMode, setAddTagMode] = useState({ type: null, parentId: null });
   const [newTagText, setNewTagText] = useState('');
-  const [backupTags, setBackupTags] = useState(null); // 태그 목록 백업
   const [backupEditTag, setBackupEditTag] = useState(null);
+  const [selectedTagName, setSelectedTagName] = useState(null);
+
+  const routineTags = useMemo(() => {
+    return Array.isArray(tags) ? tags : [];
+  }, [tags]);
 
   // 루틴 완료 처리
-  const routineComplete = (id) => {
-    setRoutine(prevRoutine =>
-      prevRoutine.map(routine => {
-        if (routine.id === id) {
-            const newCompleted = !routine.completed;
-            let updatedSubSteps = routine.subSteps;
+  const routineComplete = async (id) => {
+    const targetRoutine = routines.find(r => r.id === id);
+    if (!targetRoutine) return;
 
-            // 메인이 완료되면 하위도 모두 완료 처리
-            if (newCompleted) {
-                if (routine.subSteps) {
-                    updatedSubSteps = routine.subSteps.map(step => ({...step, completed: true}));
-                }
-            } else {
-                if (routine.subSteps) {
-                    updatedSubSteps = routine.subSteps.map(step => ({...step, completed: false}));
-                }
-            }
-            return { 
-                ...routine, 
-                completed: newCompleted,
-                subSteps: updatedSubSteps 
-            };
-        }
-        return routine;
-      })
-    );
+    const newCompleted = !targetRoutine.completed;
 
-    // 상세 보기 중인 아이템도 동기화
-    if (detailItem && detailItem.id === id) {
-      setDetailItem(prev => {
-         const newCompleted = !prev.completed;
-         let updatedSubSteps = prev.subSteps;
-         if (newCompleted && prev.subSteps) {
-             updatedSubSteps = prev.subSteps.map(step => ({...step, completed: true}));
-         } else if (!newCompleted && prev.subSteps) {
-             updatedSubSteps = prev.subSteps.map(step => ({...step, completed: false}));
+    if (newCompleted && !targetRoutine.expGiven) {
+       try {
+         if (user?.uid) {
+            await userService.incrementRoutineStats(user.uid);
          }
-         return { ...prev, completed: newCompleted, subSteps: updatedSubSteps };
+       } catch (e) {
+         console.error("Exp update failed:", e);
+       }
+    }
+
+    const newExpGiven = (newCompleted && !targetRoutine.expGiven) ? true : targetRoutine.expGiven;
+
+    // 메인이 완료되면 하위도 모두 완료 처리
+    let updatedSubSteps = targetRoutine.subs || [];
+    if (newCompleted) {
+      updatedSubSteps = updatedSubSteps.map(step => ({...step, completed: true}));
+    } else {
+      updatedSubSteps = updatedSubSteps.map(step => ({...step, completed: false}));
+    }
+  
+    if (detailItem && detailItem.id === id) {
+      setDetailItem(prev => ({
+        ...prev,
+        completed: newCompleted,
+        subs: updatedSubSteps,
+        expGiven: newExpGiven
+      }));
+    }
+
+    try {
+      await updateData('routine', id, {
+        completed: newCompleted,
+        subs: updatedSubSteps
       });
+    } catch (e) {
+      console.warn('[routineComplete] update failed (ignored)', e);
     }
   };
 
   // 중요 표시 토글
-  const routineImportant = (id) => {
-    setRoutine(prevRoutine =>
-      prevRoutine.map(routine =>
-        routine.id === id ? {...routine, important: !routine.important} : routine
-      )
-    );
+  const routineImportant = async (id) => {
+    const targetRoutine = routines.find(r => r.id === id);
+    if (!targetRoutine) return;
+
+    const newValue = !targetRoutine.important;
+
     if (detailItem && detailItem.id === id) {
-      setDetailItem(prev => ({ ...prev, important: !prev.important }));
+      setDetailItem(prev => ({ ...prev, important: newValue }));
+    }
+
+    try {
+      await updateData('routine', id, { important: newValue });
+    } catch (e) {
+      console.warn('[routineImportant] update failed (ignored)', e);
     }
   };
 
@@ -359,23 +349,23 @@ export default function RoutineScreen(){
     const newSelected = new Set(selectedIds);
     
     if (subId === null) {
-        if (newSelected.has(parentId)) {
-            newSelected.delete(parentId);
-            const targetRoutine = routine.find(r => r.id === parentId);
-            if (targetRoutine && targetRoutine.subSteps) {
-                targetRoutine.subSteps.forEach(step => {
-                    newSelected.delete(`${parentId}-${step.id}`);
-                });
-            }
-        } else {
-            newSelected.add(parentId);
-            const targetRoutine = routine.find(r => r.id === parentId);
-            if (targetRoutine && targetRoutine.subSteps) {
-                targetRoutine.subSteps.forEach(step => {
-                    newSelected.add(`${parentId}-${step.id}`);
-                });
-            }
+      if (newSelected.has(parentId)) {
+        newSelected.delete(parentId);
+        const targetRoutine = routines.find(r => r.id === parentId);
+        if (targetRoutine && targetRoutine.subs) {
+          targetRoutine.subs.forEach(step => {
+            newSelected.delete(`${parentId}-${step.id}`);
+          });
         }
+      } else {
+        newSelected.add(parentId);
+        const targetRoutine = routines.find(r => r.id === parentId);
+        if (targetRoutine && targetRoutine.subs) {
+          targetRoutine.subs.forEach(step => {
+            newSelected.add(`${parentId}-${step.id}`);
+          });
+        }
+      }
     } else {
       if (newSelected.has(parentId)) {
           return; 
@@ -434,19 +424,43 @@ export default function RoutineScreen(){
       [
         {text: "닫기", style: "cancel"},
         {text: "삭제", style: "destructive",
-          onPress: () => {
-            setRoutine(prevRoutine => {
-              return prevRoutine.filter(r => {
-                if (selectedIds.has(r.id)) return false; // 메인 삭제
-                return true;
-              }).map(r => {
-                if (r.subSteps) {
-                  const newSubSteps = r.subSteps.filter(step => !selectedIds.has(`${r.id}-${step.id}`));
-                  return { ...r, subSteps: newSubSteps };
-                }
-                return r;
-              });
+          onPress: async () => {
+            const mainIds = [];
+            const subDeletes = {};
+
+            selectedIds.forEach(id => {
+              if (id.includes('-')) {
+                const [parentId, subId] = id.split('-');
+                if (!subDeletes[parentId]) subDeletes[parentId] = [];
+                subDeletes[parentId].push(subId);
+              } else {
+                mainIds.push(id);
+              }
             });
+
+            try {
+              const subUpdatePromises = Object.keys(subDeletes).map(async (parentId) => {
+                if (mainIds.includes(parentId)) return;
+
+                const parent = routines.find(r => r.id === parentId);
+                if (parent && parent.subs) {
+                  const targetSubIds = subDeletes[parentId];
+                  const newSubSteps = parent.subs.filter(step => !targetSubIds.includes(step.id));
+                  
+                  if (newSubSteps.length !== parent.subs.length) {
+                    await updateData('routine', parentId, { subs:newSubSteps });
+                  }
+                }
+              });
+              for (const id of mainIds) {
+                await deleteData('routine', id);
+              }
+              await refreshData();
+
+              cancelDelete();
+            } catch (e) {
+              console.error(e);
+            }
             cancelDelete();
           }
         }
@@ -474,8 +488,8 @@ export default function RoutineScreen(){
     if (isMainDetailChecked) {
       Alert.alert("삭제", "이 루틴 전체를 삭제하시겠습니까?", [
         { text: "취소", style: "cancel" },
-        { text: "삭제", style: "destructive", onPress: () => {
-          setRoutine(prev => prev.filter(r => r.id !== detailItem.id));
+        { text: "삭제", style: "destructive", onPress: async () => {
+          await deleteData('routine', detailItem.id);
           setDetailVisible(false);
           setDetailMenuVisible(false);
           setDetailItem(null);
@@ -489,13 +503,11 @@ export default function RoutineScreen(){
       if (selectedDetailSubIds.size > 0) {
         Alert.alert("삭제", "선택한 세부 단계를 삭제하시겠습니까?", [
           { text: "취소", style: "cancel" },
-          { text: "삭제", style: "destructive", onPress: () => {
+          { text: "삭제", style: "destructive", onPress: async () => {
             // 선택되지 않은 항목만 남김
-            const newSubSteps = detailItem.subSteps.filter(step => !selectedDetailSubIds.has(step.id));
-            
-            setDetailItem(prev => ({ ...prev, subSteps: newSubSteps }));
-            setRoutine(prev => prev.map(r => r.id === detailItem.id ? { ...r, subSteps: newSubSteps } : r));
-            
+            const newSubSteps = detailItem.subs.filter(step => !selectedDetailSubIds.has(step.id));
+            await updateData('routine', detailItem.id, { subs:newSubSteps });
+            setDetailItem(prev => ({ ...prev, subs:newSubSteps }));
             cancelDetailDeleteMode();
           }}
         ]);
@@ -514,62 +526,54 @@ export default function RoutineScreen(){
   };
 
   // 상세 화면 내부에서 세부 단계 완료
-  const handleToggleSubStep = (subStepId) => {
-    if (!detailItem) return;
+  const handleToggleSubStep = async (subStepId) => {
+    if (!detailItem || detailItem.completed) return;
 
-    // 이미 완료된 루틴은 세부 단계 수정 불가
-    if (detailItem.completed) {
-      return;
-    }
-
-    const newSubSteps = (detailItem.subSteps || []).map(step => 
+    const newSubSteps = (detailItem.subs || []).map(step => 
       step.id === subStepId ? { ...step, completed: !step.completed } : step
     );
 
-    setDetailItem(prev => ({ ...prev, subSteps: newSubSteps }));
-    
-    setRoutine(prev => prev.map(r => 
-      r.id === detailItem.id ? { ...r, subSteps: newSubSteps } : r
-    ));
+    setDetailItem(prev => ({
+      ...prev, subs:newSubSteps
+    }));
+    try {
+      await updateData('routine', detailItem.id, { subs: newSubSteps });
+    } catch (e) {
+      console.warn('[toggleSubStep] update failed', e);
+    }
   };
 
   // 메인 리스트 화면에서 세부 단계 완료
-  const handleToggleSubStepList = (parentId, subStepId) => {
-    setRoutine(prevRoutine => prevRoutine.map(routine => {
-      if (routine.id === parentId) {
-        if (routine.completed) {
-          return routine;
-        }
-        
-        const newSubSteps = (routine.subSteps || []).map(step => 
-          step.id === subStepId ? { ...step, completed: !step.completed } : step
-        );
-        return { ...routine, subSteps: newSubSteps };
-      }
-      return routine;
-    }));
+  const handleToggleSubStepList = async (parentId, subStepId) => {
+    const parent = routines.find(r => r.id === parentId);
+    if (!parent || parent.completed) return;
+
+    const currentSubSteps = parent.subs || [];
+
+    const newSubSteps = currentSubSteps.map(step => 
+      step.id === subStepId ? { ...step, completed: !step.completed } : step
+    );
+    await updateData('routine', parentId, { subs:newSubSteps });
   };
 
   // 세부 단계 추가 및 저장
-  const handleSaveSubStep = () => {
+  const handleSaveSubStep = async () => {
     if (subStepText.trim() === '') {
       setIsAddSubStep(false);
       return;
     }
 
+    const isParentCompleted = detailItem.completed;
+
     const newStep = {
       id: String(Date.now()),
       title: subStepText,
-      completed: false
+      completed: isParentCompleted
     };
+    const newSubSteps = [...(detailItem.subs || []), newStep];
 
-    const newSubSteps = [...(detailItem.subSteps || []), newStep];
-
-    setDetailItem(prev => ({ ...prev, subSteps: newSubSteps }));
-
-    setRoutine(prev => prev.map(r => 
-      r.id === detailItem.id ? { ...r, subSteps: newSubSteps } : r
-    ));
+    setDetailItem(prev => ({ ...prev, subs:newSubSteps }));
+    await updateData('routine', detailItem.id, { subs:newSubSteps });
 
     setSubStepText('');
     setIsAddSubStep(false);
@@ -602,14 +606,15 @@ export default function RoutineScreen(){
       return new Date(reDate);
     }
 
-    // 월별 필터링
-    let filtered = routine.filter(item => {
-      if(!item.date) return false;
-      const itemDate = parsedDate(item.date);
-      return itemDate.getFullYear() === currentMonth.getFullYear() && itemDate.getMonth() === currentMonth.getMonth();
-    });
+    const today = new Date();
+    const tYear = today.getFullYear();
+    const tMonth = String(today.getMonth() + 1).padStart(2, '0');
+    const tDay = String(today.getDate()).padStart(2, '0');
+    const todayString = `${tYear}.${tMonth}.${tDay}`;
 
-    const filterMonth = routine.filter(item => {
+    // 월별 필터링
+    let filtered = routines.filter(item => {
+      if(!item.date) return false;
       const itemDate = parsedDate(item.date);
       return itemDate.getFullYear() === currentMonth.getFullYear() && itemDate.getMonth() === currentMonth.getMonth();
     });
@@ -620,13 +625,11 @@ export default function RoutineScreen(){
         filtered = filtered.filter(item => item.important);
       } 
       else if (activeFilter.type === 'today') {
-        const today = new Date();
         const year = today.getFullYear();
         const month = String(today.getMonth() + 1).padStart(2, '0');
         const day = String(today.getDate()).padStart(2, '0');
-        const todayString = `${year}.${month}.${day}`;
-        
-        filtered = filtered.filter(item => item.date === todayString);
+        const tStr = `${year}.${month}.${day}`;
+        filtered = filtered.filter(item => item.date === tStr);
       } 
       else if (activeFilter.type === 'tag') {
         filtered = filtered.filter(item => item.tag === activeFilter.value);
@@ -637,15 +640,30 @@ export default function RoutineScreen(){
     const uncompleted = filtered.filter(item => !item.completed);
     const completed = filtered.filter(item => item.completed);
 
+    const prioritySort = (a, b, baseComparator) => {
+       const isAToday = a.date === todayString;
+       const isBToday = b.date === todayString;
+
+       if (isAToday && !isBToday) return -1;
+       if (!isAToday && isBToday) return 1;
+       
+       return baseComparator(a, b);
+    };
+
     if(sortOrder === '기한순') {
       const dateSort = (a, b) => parsedDate(a.date) - parsedDate(b.date);
-      uncompleted.sort(dateSort);
+      uncompleted.sort((a, b) => prioritySort(a, b, dateSort));
       completed.sort(dateSort);
     }
     else if(sortOrder === '최신등록순'){
-      const idSort = (a, b) => Number(b.id) - Number(a.id);
-      uncompleted.sort(idSort);
-      completed.sort(idSort);
+      const latestSort = (a, b) => {
+        const dateA = new Date(a.createdAt || 0).getTime();
+        const dateB = new Date(b.createdAt || 0).getTime();
+        
+        return dateB - dateA; 
+      };
+      uncompleted.sort((a, b) => prioritySort(a, b, latestSort));
+      completed.sort(latestSort);
     }
 
     const count = uncompleted.length;
@@ -654,7 +672,7 @@ export default function RoutineScreen(){
       filterSortedRoutine: [...uncompleted, ...completed],  // 미완료 우선 표시
       remainderCount: count
     };
-  }, [routine, sortOrder, currentMonth, activeFilter]);
+  }, [routines, sortOrder, currentMonth, activeFilter]);
 
   const itemSort = (newSortOrder) => {
     setSortOrder(newSortOrder);
@@ -709,19 +727,12 @@ export default function RoutineScreen(){
     setIsEditDetail(false);
 
     const newRoutine = {
-      id: String(Date.now()), 
       title: '',
       date: null,
       completed: false, important: false,
-      
-      remind: null, 
-      repeated: null,
-      tag: null,
-      subSteps: []
+      remind: null, repeated: null, tag: null, subs:[], expGiven: false,
+      createdAt: Date.now(),
     };
-    setTags(prev => prev.map(t => ({
-      ...t, selected: false
-    })));
 
     setEditItem(newRoutine);
     setEditorVisible(true);
@@ -747,7 +758,7 @@ export default function RoutineScreen(){
 
   // 상세 화면에서 삭제 선택 시
   const handleDeleteDetail = () => {
-    if (detailItem.subSteps && detailItem.subSteps.length > 0) {
+    if (detailItem.subs && detailItem.subs.length > 0) {
       setIsDetailDeleteMode(true);
       setDetailMenuVisible(false);
     }
@@ -758,9 +769,9 @@ export default function RoutineScreen(){
         { 
           text: "삭제", 
           style: "destructive", 
-          onPress: () => {
+          onPress: async () => {
             if (detailItem) {
-              setRoutine(prev => prev.filter(r => r.id !== detailItem.id));
+              await deleteData('routine', detailItem.id);
               setDetailVisible(false);
               setDetailMenuVisible(false);
               setDetailItem(null);
@@ -818,17 +829,19 @@ export default function RoutineScreen(){
   };
 
   // 루틴 저장 (새 항목 추가 / 수정)
-  const handleSaveRoutine = () => {
-    if (editItem && editItem.title.trim() !== '' && editItem.date) { 
-      setRoutine(prev => {
-      const exists = prev.find(r => r.id === editItem.id);
-        if (exists) {
-          return prev.map(r => r.id === editItem.id ? editItem : r);
-        }
-        else {
-          return [editItem, ...prev];  // 신규
-        }
-      });
+  const handleSaveRoutine = async () => {
+    if (!editItem || editItem.title.trim() === '' || !editItem.date) {
+      Alert.alert("알림", "제목과 날짜를 입력해주세요.");
+      return;
+    }
+    try {
+      const exists = routines.find(r => r.id === editItem.id);
+      
+      if (exists) {
+        await updateData('routine', editItem.id, editItem);
+      } else {
+        await saveData('routine', editItem);
+      }
 
       if (isEditDetail) {
         setDetailItem(editItem);
@@ -838,8 +851,9 @@ export default function RoutineScreen(){
       } else {
         handleCloseEditor();
       }
-    } else { 
-        Alert.alert("알림", "제목과 날짜를 입력해주세요."); 
+    } catch (e) {
+      console.error(e);
+      Alert.alert("오류", "저장에 실패했습니다.");
     }
   }
 
@@ -855,29 +869,23 @@ export default function RoutineScreen(){
       tag: detailItem.tag || null,
       remind: detailItem.remind || null,
       repeated: detailItem.repeated || null,
-      subSteps: detailItem.subSteps || [],
+      subs:detailItem.subs || [],
     });
 
     // 태그 선택 상태 초기화 및 현재 태그 반영
     const currentTagName = detailItem.tag;
-    const newTags = tags.map(t => ({
-      ...t,
-      selected: t.name === currentTagName
-    }));
-    setTags(newTags);
     
     // 취소 시 복구를 위한 백업
-    setBackupTags(JSON.parse(JSON.stringify(newTags)));
     if(detailItem) setBackupEditTag(detailItem.tag || null);
 
     if (target === 'tag') {
-        setTimeout(() => {
-            setTagVisible(true);
-        }, 100);
+      setTimeout(() => {
+        setTagVisible(true);
+      }, 100);
     } else if (target === 'full') {
-        setTimeout(() => {
-            setEditorVisible(true);
-        }, 100);
+      setTimeout(() => {
+        setEditorVisible(true);
+      }, 100);
     }
   };
 
@@ -1063,7 +1071,6 @@ export default function RoutineScreen(){
   const handleOpenTag = () => {
     Keyboard.dismiss();
 
-    setBackupTags(JSON.parse(JSON.stringify(tags))); 
     if (editItem) {
       setBackupEditTag(editItem.tag);
     }
@@ -1076,53 +1083,37 @@ export default function RoutineScreen(){
   };
 
   const handleCancelTag = () => {
-    if (backupTags) {
-        setTags(backupTags);
-    }
     if (editItem) {
-        setEditItem(prev => ({ ...prev, tag: backupEditTag }));
+      setEditItem(prev => ({ ...prev, tag: backupEditTag }));
     }
     setTagVisible(false);
     if (isEditDetail) {
-        setTimeout(() => setDetailVisible(true), 100);
-        setIsEditDetail(false);
+      setTimeout(() => setDetailVisible(true), 100);
+      setIsEditDetail(false);
     }
   };
 
   const handleConfirmTag = () => {
     if (isEditDetail && editItem) {
-        setRoutine(prev => prev.map(r => 
-          r.id === editItem.id ? { ...r, tag: editItem.tag } : r
-      ));
+      updateData('routine', editItem.id, { tag: editItem.tag });
       setDetailItem(prev => ({ ...prev, tag: editItem.tag }));
-        
-        setTagVisible(false);
-        setTimeout(() => setDetailVisible(true), 100);
-        setIsEditDetail(false);
+      setTagVisible(false);
+      setTimeout(() => setDetailVisible(true), 100);
+      setIsEditDetail(false);
     } else {
-        setTagVisible(false);
+      setTagVisible(false);
     }
   };
 
-  const handleToggleTag = (tagId) => {
-    setTags(prevTags => {
-      const targetTag = prevTags.find(t => t.id === tagId);
-      const isAlreadySelected = targetTag?.selected;
-      const shouldSelect = !isAlreadySelected;
-      const newTagName = shouldSelect ? targetTag.name : null;
+  const handleToggleTag = (tagName) => {
+    const isSame = editItem?.tag === tagName;
 
-      if(editItem){
-        setEditItem(prev => ({
-          ...prev, 
-          tag: newTagName
-        }));
-      }
+    setEditItem(prev => ({
+      ...prev,
+      tag: isSame ? null : tagName
+    }));
 
-      return prevTags.map(t => ({
-        ...t,
-        selected: t.id === tagId ? shouldSelect : false
-      }));
-    });
+    setSelectedTagName(isSame ? null : tagName);
   };
 
   const startAddTag = (type, parentId = null) => {
@@ -1130,7 +1121,7 @@ export default function RoutineScreen(){
     setNewTagText('');
   };
 
-  const saveNewTag = () => {
+  const saveNewTag = async () => {
     const tagNameToCheck = newTagText.trim();
 
     if (tagNameToCheck === ''){
@@ -1139,34 +1130,21 @@ export default function RoutineScreen(){
       return;
     }
     
-    // 중복 이름 체크
-    const isDuplicate = tags.some(tag => tag.name === tagNameToCheck);
+    try {
+      await saveData('tag', { name: tagNameToCheck });
 
-    if (isDuplicate) {
-      Alert.alert("알림", "이미 존재하는 태그 이름입니다.");
-      return; // 중복이면 함수 종료
-    }
-    
-    const newId = String(Date.now());
-    let newTagName = tagNameToCheck;
-    
-    setTags(prevTags => {
-      const resetTags = prevTags.map(t => ({
-        ...t,
-        selected: false,
-      }));
-      return [...resetTags, { id: newId, name: newTagName, selected: true }];
-    });
+      if(editItem){
+        setEditItem(prev => ({
+          ...prev, tag: tagNameToCheck
+        }));
+      }
 
-    if(editItem){
-      setEditItem(prev => ({
-        ...prev, tag: newTagName
-      }));
+      setAddTagMode({ type: null, parentId: null });
+      setNewTagText('');
+
+    } catch (error) {
+      Alert.alert("알림", error.message || "태그 저장 중 오류가 발생했습니다.");
     }
-    
-    // 입력 모드 종료
-    setAddTagMode({ type: null, parentId: null });
-    setNewTagText('');
   };
 
   return(
@@ -1207,6 +1185,7 @@ export default function RoutineScreen(){
             onPrevMonth={handlePrevMonth}
             onNextMonth={handleNextMonth}
             isFilterActive={activeFilter !== null}
+            user={user}
           />
         </View>
 
@@ -1311,9 +1290,9 @@ export default function RoutineScreen(){
                   </View>
                   
                   {/* 태그 목록 */}
-                  {tags.map(tag => (
+                  {routineTags.map(tag => (
                     <TouchableOpacity 
-                      key={tag.id}
+                      key={tag.name}
                       onLayout={(event) => {
                         scrollPositions.current[tag.name] = event.nativeEvent.layout.y;
                       }}
@@ -1442,7 +1421,7 @@ export default function RoutineScreen(){
                         
                         if (newMainChecked) {
                             const allSubIds = new Set();
-                            (detailItem.subSteps || []).forEach(step => allSubIds.add(step.id));
+                            (detailItem.subs || []).forEach(step => allSubIds.add(step.id));
                             setSelectedDetailSubIds(allSubIds);
                         } else {
                             setSelectedDetailSubIds(new Set());
@@ -1494,7 +1473,7 @@ export default function RoutineScreen(){
                       nestedScrollEnabled={true}
                       showsVerticalScrollIndicator={true}
                       >
-                      {(detailItem.subSteps || []).map((step) => (
+                      {(detailItem.subs || []).map((step) => (
                         <View key={step.id} style={styles.subStepRow}>
                           <TouchableOpacity 
                             style={{flexDirection: 'row', alignItems: 'center', flex: 1}}
@@ -1856,16 +1835,29 @@ export default function RoutineScreen(){
               <NoScaleText style={{color: '#000000', fontSize: 20, alignItems: 'left', marginBottom: 15}}>태그</NoScaleText>
               
               <ScrollView>
-                {tags.map((tag) => (
-                   <View key={tag.id} style={{marginBottom: 15}}>
-                      <TouchableOpacity onPress={() => handleToggleTag(tag.id)} style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'}}>
-                         <View style={{flexDirection: 'row', alignItems: 'center'}}>
-                            <MaterialIcons name={tag.selected ? "label" : "label-outline"} size={20} color={tag.selected ? "#3A9CFF" : "gray"} />
-                            <NoScaleText style={{marginLeft: 10, fontSize: 16, color: tag.selected ? "#3A9CFF" : "#000"}}>{tag.name}</NoScaleText>
-                         </View>
+                {routineTags.map((tag) => {
+                  const selected = (editItem?.tag === tag.name); // 또는 selectedTagName === tag.name
+
+                  return (
+                    <View key={tag.name} style={{marginBottom: 15}}>
+                      <TouchableOpacity
+                        onPress={() => handleToggleTag(tag.name)}
+                        style={{flexDirection:'row', alignItems:'center', justifyContent:'space-between'}}
+                      >
+                        <View style={{flexDirection:'row', alignItems:'center'}}>
+                          <MaterialIcons
+                            name={selected ? "label" : "label-outline"}
+                            size={20}
+                            color={selected ? "#3A9CFF" : "gray"}
+                          />
+                          <NoScaleText style={{marginLeft: 10, fontSize: 16, color: selected ? "#3A9CFF" : "#000"}}>
+                            {tag.name}
+                          </NoScaleText>
+                        </View>
                       </TouchableOpacity>
-                   </View>
-                ))}
+                    </View>
+                  );
+                })}
               </ScrollView>
 
               <View style={{marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#eee'}}>
@@ -1916,12 +1908,12 @@ export default function RoutineScreen(){
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={{ flex: 1 }}
         >
-
-          <TouchableOpacity 
-            style={[styles.baseBackdrop, { justifyContent: 'center', alignItems: 'center' }]} 
-            activeOpacity={1} 
-            onPress={handleWriteCancel}>
-          
+          <View style={[styles.baseBackdrop, { justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }]}>
+            <TouchableOpacity 
+              style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }} 
+              activeOpacity={1} 
+              onPress={handleWriteCancel}/>
+            
             <View style={styles.editorContent}>
               {editItem && (
                 <>
@@ -1968,7 +1960,7 @@ export default function RoutineScreen(){
                 </>
               )}
             </View>
-          </TouchableOpacity>
+          </View>
         </KeyboardAvoidingView>
       </Modal>
 

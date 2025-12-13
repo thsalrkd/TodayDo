@@ -4,30 +4,13 @@ import { SafeAreaView, View, StyleSheet, TouchableOpacity, Alert, Animated, Moda
 import Ionicons from '@expo/vector-icons/Ionicons';
 import DayRecord from './DayRecord';
 import MonthRecord from './MonthRecord';
-
-const DATA = [
-  {
-    id: '1',
-    text: "비교를 멈추고 '나의 작은 일상'에 집중해야 한다. 이 풍진 세상에서 별일 없이 하루를 보냈다면, 그것만으로도 우리는 잘 하고 있는 것이다.",
-    mood: 'happy',
-    date: '2025.10.23'
-  },
-  {
-    id: '2',
-    text: "뱀은 환경 적응력이 뛰어난 동물이다.",
-    mood: 'neutral',
-    date: '2025.10.22'
-  },
-  {
-    id: '3',
-    text: "오늘은 너무 바쁜 하루였다.",
-    mood: 'bad',
-    date: '2025.10.21'
-  },
-];
+import { useData } from '../core/context/dataContext';
+import { useAuth } from '../core/context/authContext';
+import userService from '../core/firebase/userService';
 
 export default function RecordScreen() {
-  const [records, setRecords] = useState(DATA);
+  const { records, saveData, updateData, deleteData } = useData();
+  const { user, updateProfile } = useAuth();
   const [viewMode, setViewMode] = useState('day'); 
   const [currentDate, setCurrentDate] = useState(new Date()); // 오늘 날짜 기본
 
@@ -101,7 +84,7 @@ export default function RecordScreen() {
 
     if (existingData) {
       // 수정 모드(이미 기록이 있으면)
-      setInputText(existingData.text || '');
+      setInputText(existingData.content|| existingData.text || '');
       setSelectedMood(existingData.mood || null);
     } else {
       // 새 작성 모드
@@ -112,38 +95,44 @@ export default function RecordScreen() {
   };
 
   // 저장 버튼 클릭 시
-  const handleSave = () => {
+  const handleSave = async () => {
     if (inputText.trim() === '' && selectedMood === null) {
       setIsModalVisible(false);
       return;
     }
 
-    setRecords(prev => {
-      const targetDate = editingDate;
-      const existingIndex = prev.findIndex(item => item.date === targetDate);
-      if (existingIndex >= 0) {
-          // 수정
-          const updated = [...prev];
-          updated[existingIndex] = {
-              ...updated[existingIndex],
-              text: inputText,
-              mood: selectedMood
-          };
-          return updated;
+    const targetDate = editingDate;
+    const existingRecord = records.find(item => item.date === targetDate);
+
+    try {
+      if (existingRecord) {
+        await updateData('record', existingRecord.id, {
+          date: targetDate,
+          content: inputText,
+          mood: selectedMood
+        });
       } else {
-          // 신규 추가
-          const newRecord = {
-              id: String(Date.now()),
-              date: targetDate,
-              text: inputText,
-              mood: selectedMood
-          };
-          return [newRecord, ...prev];
+        await saveData('record', {
+          date: targetDate,
+          content: inputText,
+          mood: selectedMood
+        });
+
+        if (user?.uid) {
+          await userService.incrementRecordStats(user.uid);
         }
-    });
+      }
+
+      setTimeout(() => {
+        setIsModalVisible(false);
+      }, 100);
+    } catch (e) {
+      console.error(e);
+      Alert.alert("오류", "저장에 실패했습니다.");
+    }
 
     setIsModalVisible(false);
-    Keyboard.dismiss();  // 키보드 내리기
+    Keyboard.dismiss();
   };
 
   // 삭제 버튼 클릭 시
@@ -157,8 +146,16 @@ export default function RecordScreen() {
         { 
           text: "삭제", 
           style: "destructive", 
-          onPress: () => {
-            setRecords(prev => prev.filter(item => item.date !== editingDate));
+          onPress: async () => {
+            try {
+              await deleteData('record', existingData.id);
+              setInputText('');
+              setSelectedMood(null);
+              setIsModalVisible(false);
+            } catch (e) {
+              console.error(e);
+              Alert.alert("오류", "삭제에 실패했습니다.");
+            }
             setIsModalVisible(false);
           }
         }
@@ -190,7 +187,8 @@ export default function RecordScreen() {
     // 변경 사항이 있는지 확인
     if (existingData) {
       // 수정 모드
-      if (existingData.text !== inputText || existingData.mood !== selectedMood) {
+      const currentContent = existingData.content || existingData.text || '';
+      if (currentContent !== inputText || existingData.mood !== selectedMood) {
         hasChanges = true;
       }
     } else {

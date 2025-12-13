@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { NoScaleText, NoScaleTextInput } from '../components/NoScaleText';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Keyboard, TouchableWithoutFeedback } from 'react-native';
 
-export default function SignUpEmail({ navigation }) {
-  const [email, setEmail] = useState('');
+export default function SignUpEmailCode({ navigation, route }) {
+  const { email } = route.params;
+  const [code, setCode] = useState('');
 
   const totalSteps = 3; // 회원가입 총 단계
-  const currentStep = 1; // 현재 단계
+  const currentStep = 1; // 현재 단계 (2단계로 변경)
   const progressWidth = `${(currentStep / totalSteps) * 100}%`; // 진행바 길이
 
   return (
@@ -18,23 +19,28 @@ export default function SignUpEmail({ navigation }) {
           </View>
 
           <View style={styles.inputContainer}>
-            <NoScaleText style={styles.label}>이메일 입력</NoScaleText>
+            <NoScaleText style={styles.emailText}>{email}로 인증코드를 전송했습니다.</NoScaleText>
+            <NoScaleText style={styles.label}>이메일 인증코드 입력</NoScaleText>
             <NoScaleTextInput
               style={styles.input}
-              placeholder="e-mail"
-              placeholderTextColor="#bbb"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
+              keyboardType="numeric"
+              maxLength={5}
+              onChangeText={setCode}
+              value={code}
             />
+            <TouchableOpacity 
+              onPress={() => {
+              // 인증코드 재전송 기능 추가 예정
+              }}>
+              <NoScaleText style={styles.resend}>재전송</NoScaleText>
+            </TouchableOpacity>
           </View>
 
           <TouchableOpacity
-            style={[styles.button, !email && styles.buttonDisabled]}
-            disabled={!email}
+            style={[styles.button, !code && styles.buttonDisabled]}
+            disabled={!code}
             onPress={() => {
-              navigation.navigate('SignUpEmailCode', { email });
+              navigation.navigate('SignUpPW', { email, code });
             }}
           >
             <NoScaleText style={styles.buttonText}>계속</NoScaleText>
@@ -45,7 +51,7 @@ export default function SignUpEmail({ navigation }) {
   );
 }
 
-export const styles = StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f9f9f9',
@@ -55,13 +61,13 @@ export const styles = StyleSheet.create({
     paddingTop: 40,
     marginTop: 8,
 
-    //iOS 그림자 속성
+    // iOS 그림자
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.5,
     shadowRadius: 6,
 
-    //Android 그림자 속성
+    // Android 그림자
     elevation: 6,
   },
   progressBar: {
@@ -78,8 +84,12 @@ export const styles = StyleSheet.create({
   },
   inputContainer: {
     marginBottom: 20,
-    marginTop: 30,
+    marginTop: 5,
     paddingHorizontal: 15,
+  },
+  emailText: {
+    marginBottom: 8,
+    color: '#8f8f8fff',
   },
   label: {
     fontSize: 18,
@@ -93,6 +103,11 @@ export const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
   },
+  resend: {
+    textAlign: 'right',
+    color: '#4a90e2',
+    marginTop: 10,
+  },
   button: {
     backgroundColor: '#3A9CFF',
     paddingVertical: 12,
@@ -100,7 +115,7 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     width: 80,
     alignSelf: 'center',
-    marginTop: 50,
+    marginTop: 25,
   },
   buttonDisabled: {
     backgroundColor: '#ccc',

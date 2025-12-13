@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { NoScaleText, NoScaleTextInput } from '../components/NoScaleText';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Keyboard, TouchableWithoutFeedback } from 'react-native';
 
-export default function SignUpPW({ navigation }) {
+export default function SignUpPW({ navigation, route }) {
+  const { email } = route.params;
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const isPasswordValid = password.length > 0 && password === passwordConfirm;
@@ -46,7 +47,7 @@ export default function SignUpPW({ navigation }) {
             style={[styles.button, !isPasswordValid && styles.buttonDisabled]}
             disabled={!isPasswordValid}
             onPress={() => {
-              navigation.navigate('SignUpName', { password });
+              navigation.navigate('SignUpName', { email, password });
             }}
           >
             <NoScaleText style={styles.buttonText}>계속</NoScaleText>

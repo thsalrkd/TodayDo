@@ -11,6 +11,8 @@ export default function DayRecord({ date, onPrev, onNext, data }) {
   const day = date.getDate();
   const dateString = `${year}.${String(month).padStart(2, '0')}.${String(day).padStart(2, '0')}`;
 
+  const recordContent = data ? (data.content || '') : '';
+
   // 기본 데이터를 받아 로컬 이미지 경로로 변환
   const getMoodIcon = (mood) => {
     if (!mood) return null;
@@ -40,15 +42,18 @@ export default function DayRecord({ date, onPrev, onNext, data }) {
             // 데이터가 있을 경우
             <>
               {/* 텍스트 내용이 있을 때만 스크롤뷰 */ }
-              {data.text && data.text.trim() !== '' && (
+              {recordContent && recordContent.trim() !== '' && (
                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.textContainer}>
-                  <NoScaleText style={styles.recordText}>{data.text}</NoScaleText>
+                  <NoScaleText style={styles.recordText}>{recordContent}</NoScaleText>
                 </ScrollView>
               )}
               
               {/* 기분 데이터가 있을 때 */}
               {data.mood && (
-                <View style={[styles.moodContainer, !data.text && { flex: 1, justifyContent: 'center' }]}>
+                <View style={[
+                    styles.moodContainer, 
+                    (!recordContent || recordContent.trim() === '') && { flex: 1, justifyContent: 'center' }
+                ]}>
                   <Image 
                     source={getMoodIcon(data.mood)} 
                     style={styles.moodIcon} 
@@ -112,10 +117,11 @@ const styles = StyleSheet.create({
     lineHeight: 26,
     color: '#333',
     textAlign: 'center',
+    padding: 5,
   },
   moodContainer: {
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 20,
     marginBottom: 30,
   },
   moodIcon: {

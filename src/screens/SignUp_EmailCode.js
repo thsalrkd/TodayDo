@@ -40,7 +40,7 @@ export default function SignUpEmailCode({ navigation, route }) {
             style={[styles.button, !code && styles.buttonDisabled]}
             disabled={!code}
             onPress={() => {
-              navigation.navigate('SignUpPW', { code });
+              navigation.navigate('SignUpPW', { email, code });
             }}
           >
             <NoScaleText style={styles.buttonText}>계속</NoScaleText>

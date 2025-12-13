@@ -2,6 +2,10 @@ import React, { useState, useMemo } from 'react';
 import { NoScaleText, NoScaleTextInput } from '../components/NoScaleText';
 import { View, TouchableOpacity, StyleSheet, Image, ScrollView, Alert, Modal } from 'react-native';
 
+import { useData } from'../core/context/dataContext';
+import { useAuth } from '../core/context/authContext';
+import userService from '../core/firebase/userService';
+
 import Ionicons from '@expo/vector-icons/Ionicons'
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
@@ -11,58 +15,35 @@ import ProgressBar from 'react-native-progress/Bar';
 
 import { useNavigation } from '@react-navigation/native';
 
-const USER_DATA = {
-  name: 'User',
-  title: '처음 날개 단 병아리!',
-  exp: 150,
-  maxExp: 300,
-  level: 1,
-}
-
-const DATA = {
-  todo: [
-    { id: 't1', text: '할 일 5', completed: false, date: '2025.12.02', remind: true, repeated: false, expGiven: false },
-    { id: 't2', text: '할 일 6', completed: false, date: '2025.12.02', remind: false, repeated: true, expGiven: false },
-    { id: 't3', text: '지난 할 일', completed: true, date: '2025.12.01', remind: false, repeated: false, expGiven: true },
-    { id: 't4', text: '오늘 완료한 일', completed: true, date: '2025.12.02', remind: true, repeated: true, expGiven: true },
-  ],
-  routine: [
-    { id: 'r1', text: '루틴 5', completed: false, date: '2025.12.02', remind: true, repeated: true, expGiven: false },
-    { id: 'r2', text: '루틴 6', completed: false, date: '2025.12.02', remind: false, repeated: false, expGiven: false },
-    { id: 'r3', text: '루틴 7', completed: false, date: '2025.12.02', remind: true, repeated: false, expGiven: false },
-    { id: 'r4', text: '루틴 8', completed: false, date: '2025.12.02', remind: false, repeated: true, expGiven: false },
-  ],
-  record: [
-    { id: 'rec1', text: '오늘의 기록', completed: false, date: '2025.12.02', expGiven: false },
-    { id: 'rec2', text: '오늘의 색', completed: false, date: '2025.12.02', expGiven: false },
-  ]
-};
-
-// Data 객체를 'YYYY.MM.DD' 문자열로 변환
-const getFormattedDate = (date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}.${month}.${day}`;
-};
-
 // 상단 헤더 컴포넌트, 프로필 이미지, 환영 메시지, 경험치바, 알림 버튼 표시
 function HomeHeader({user}) {
   const navigation = useNavigation();
-  const progress = user.maxExp > 0 ? user.exp / user.maxExp : 0;
+  const currentExp = user?.exp || 0;
+  const maxExp = user?.maxExp || 300;
+  const progress = maxExp > 0 ? currentExp / maxExp : 0;
+  const userLevel = user?.level || 1;
 
   return (
     <View style={styles.header}>
       <View style={styles.profileArea}>
-        <Image/>
-        <Ionicons name="person" size={24} color='gray' style={styles.profileImage}/>
+        <View style={styles.avatarContainer}>
+           <View style={styles.profileImageWrapper}>
+              <Ionicons name="person" size={30} color='#BDBDBD' />
+           </View>
+
+           <View style={styles.levelBadgeContainer}>
+              <MaterialCommunityIcons name="hexagon" size={24} color="#3A9CFF" />
+              <NoScaleText style={styles.levelText}>{userLevel}</NoScaleText>
+           </View>
+        </View>
+
         <View style={styles.profileText}>
-          <NoScaleText style={{fontSize: 10}}>{user.title}</NoScaleText>
-          <NoScaleText>{user.name}님 환영합니다!</NoScaleText>
+          <NoScaleText style={{fontSize: 10}}>{user.title || '칭호 없음'}</NoScaleText>
+          <NoScaleText>{user?.nickname || user?.name || 'User'}님 환영합니다!</NoScaleText>
 
           <View style={{flexDirection: 'row', alignItems: 'center'}}>
             <ProgressBar progress={progress} width={200} style={{marginRight: 5}} />
-            <NoScaleText style={{fontSize: 9, color: "#8D8D8D"}}>{user.exp}/{user.maxExp}px</NoScaleText>
+            <NoScaleText style={{fontSize: 9, color: "#8D8D8D"}}>{currentExp}/{maxExp}px</NoScaleText>
           </View>
         </View>
       </View>
@@ -75,34 +56,49 @@ function HomeHeader({user}) {
 }
 
 // 월별 캘린더 컴포넌트, react-native-calendars 라이브러리 사용
-function MonthCalendar({selectedDate, onDateSelect, today}){
-  const marked = {};
+function MonthCalendar({selectedDate, onDateSelect, today, records}){
+  const marked = useMemo(() => {
+    const markedDates = {};
 
-  // 선택된 날짜가 있을 경우
-  if(selectedDate){
-    const isSelected = selectedDate === today;
+    const validRecords = Array.isArray(records) ? records : [];
+    
+    validRecords.forEach(item => {
+      if (!item.date || !item.mood) return; 
+      
+      const dateKey = item.date.replace(/\./g, '-');
 
-    marked[selectedDate] = {
-      customStyles: {
-        container: { 
-          backgroundColor: isSelected ? '#3A9CFF' : '#D9D9D9',
-          borderRadius: 16,
-          width: 32,
-          height: 32,
-          justifyContent: 'center',
-          alignItems: 'center',
-        },
-        text: { 
-          color: isSelected ? 'white' : 'black'
-        }
+      let dotColor = 'transparent';
+      switch (item.mood) {
+        case 'happy': dotColor = '#6BCB0C'; break;   // 초록
+        case 'neutral': dotColor = '#FFC107'; break; // 노랑
+        case 'bad': dotColor = '#FF4D4D'; break;     // 빨강
       }
+
+      if (!markedDates[dateKey]) {
+        markedDates[dateKey] = { dots: [] };
+      }
+
+      if (!markedDates[dateKey].dots.find(d => d.color === dotColor)) {
+         markedDates[dateKey].dots.push({ color: dotColor });
+      }
+    });
+
+    if (selectedDate) {
+      if (!markedDates[selectedDate]) {
+        markedDates[selectedDate] = {};
+      }
+      markedDates[selectedDate].selected = true;
+      markedDates[selectedDate].selectedColor = '#3A9CFF';
     }
-  };
+
+    return markedDates;
+  }, [selectedDate, records]);
   
   return(
     <View style={styles.calCard}>
       <Calendar
-        markingType={'custom'}
+        markingType={'multi-dot'}
+        markingDates={'custom'}
         markedDates={marked}
         onDayPress={(day => onDateSelect(day.dateString))}
         theme={{
@@ -168,16 +164,16 @@ function TodayList({ data }){
           <View key={index} style={styles.listItem}>
             {/* 완료 여부에 따른 색상 */}
             <View style={[
-                styles.bulletPoint, 
-                item.completed && { backgroundColor: '#aaa' }
+              styles.bulletPoint, 
+              item.completed && { backgroundColor: '#A0A0A0' }
             ]} />
             
             {/* 완료 여부에 따른 텍스트 취소선 */}
             <NoScaleText style={[
-                styles.listText,
-                item.completed && { textDecorationLine: 'line-through', color: '#aaa' }
+              styles.listText,
+              item.completed && { textDecorationLine: 'line-through', color: '#A0A0A0' }
             ]}>
-                {item.text}
+                {item.title}
             </NoScaleText>
           </View>
         ))}
@@ -190,16 +186,16 @@ function TodayList({ data }){
   return(
     <View style={styles.card}>
       <NoScaleText style={styles.cardHeaderTitle}>Today</NoScaleText>
-      <View style={{marginTop: 40, justifyContent: 'center'}}>
+      <View style={{marginTop: 25, justifyContent: 'center'}}>
         {isEmpty ? (
-             <NoScaleText style={{textAlign: 'center', color: '#ccc', marginVertical: 10}}>
-                 오늘 예정된 일정이 없습니다.
-             </NoScaleText>
+          <NoScaleText style={{textAlign: 'center', color: '#ccc', marginVertical: 10}}>
+            오늘 예정된 일정이 없습니다.
+          </NoScaleText>
         ) : (
-            <>
-                {renderSection('Todo', data.todo)}
-                {renderSection('Routine', data.routine)}
-            </>
+          <>
+            {renderSection('Todo', data.todo)}
+            {renderSection('Routine', data.routine)}
+          </>
         )}
       </View>
     </View>
@@ -215,10 +211,12 @@ function DetailModal({ visible, date, onClose, data, onSave }) {
       if (visible) {
         setLocalData(JSON.parse(JSON.stringify(data)));
       }
-    }, [visible, data]);
+    }, [visible]);
 
     // 체크박스 클릭 시 로컬 상태의 completed 값 토글
     const toggleLocal = (section, id) => {
+      if (section === 'record') return;
+
       setLocalData(prev => ({
         ...prev,
         [section]: prev[section].map(item => 
@@ -258,7 +256,7 @@ function DetailModal({ visible, date, onClose, data, onSave }) {
                 styles.modalListText, 
                 item.completed && { textDecorationLine: 'line-through', color: '#aaa' }
               ]}>
-                {item.text}
+                {item.title}
               </NoScaleText>
               
               {showIcons && (
@@ -335,13 +333,16 @@ function DetailModal({ visible, date, onClose, data, onSave }) {
 export default function HomeScreen(){
   const [selectedDate, setSelectedDate] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
-  const [allData, setAllData] = useState(DATA);
-  const [user, setUser] = useState(USER_DATA);
+
+  const { todos, routines, records, updateData } = useData();
+  const { user } = useAuth();
 
   const today = new Date();
-  const currentYear = today.getFullYear();
-  const currentMonth = today.getMonth() + 1;
-  const todayStr = getFormattedDate(today);
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const date = String(today.getDate()).padStart(2, '0');
+  const todayStr = `${year}.${month}.${date}`;
+  const today_date = `${year}-${month}-${date}`;
 
   // 날짜 선택 핸들러, 같은 날짜를 다시 누르면 모달 표시
   const dateSelect = (dateString) => {
@@ -358,116 +359,105 @@ export default function HomeScreen(){
     let total = 0;
     let completed = 0;
 
-    ['todo', 'routine'].forEach(key => {
-      allData[key].forEach(item => {
-        if (!item.date) return;
+    const allItems = [...todos, ...routines];
 
-        const dateParts = item.date.split('.'); 
-        
-        if(dateParts.length === 3) {
-            const itemYear = parseInt(dateParts[0], 10);
-            const itemMonth = parseInt(dateParts[1], 10);
-
-            if (itemYear === currentYear && itemMonth === currentMonth) {
-                total += 1;
-                if (item.completed) completed += 1;
-            }
-        }
-      });
+    allItems.forEach(item => {
+      if(!item.date) return;
+      const dateStr = item.date.replace(/\./g, '-'); 
+      const itemDate = new Date(dateStr);
+      if (itemDate.getFullYear() === year && (itemDate.getMonth() + 1) === Number(month)) {
+        total += 1;
+        if (item.completed) completed += 1;
+      }
     });
     return { currentMonthCompleted: completed, currentMonthTotal: total };
-  }, [allData, currentYear, currentMonth]);
+  }, [todos, routines, year, month]);
 
   // 오늘의 목록, 오늘 날짜에 해당하는 데이터 필터링
   const todayData = useMemo(() => {
+    const targetDate = todayStr;
     return {
-      todo: allData.todo.filter(item => item.date === todayStr),
-      routine: allData.routine.filter(item => item.date === todayStr),
+      todo: todos.filter(item => item.date === targetDate),
+      routine: routines.filter(item => item.date === targetDate),
     };
-  }, [allData, todayStr]);
+  }, [todos, routines, todayStr]);
 
   // 모달용 데이터, 선택된 날짜의 데이터 필터링
   const filteredModalData = useMemo(() => {
     if(!selectedDate) return { todo: [], routine: [], record: [] };
     const targetDate = selectedDate.replace(/-/g, '.');
     
-    let dailyRecords = allData.record.filter(item => item.date === targetDate);
+    const dailyRecord = records.find(item => item.date === targetDate);
 
     // 기록이 없으면 Record만 표시
-    if (dailyRecords.length === 0) {
-      dailyRecords = [
-        { id: `rec_1_${targetDate}`, text: '오늘의 기록', completed: false, date: targetDate },
-        { id: `rec_2_${targetDate}`, text: '오늘의 색', completed: false, date: targetDate },
-      ];
-    }
+    const recordItems = [
+      { 
+        id: `rec_text_${targetDate}`, 
+        title: '오늘의 기록',
+        completed: !!(dailyRecord && dailyRecord.content),
+        content: dailyRecord?.content || dailyRecord?.text
+      },
+      { 
+        id: `rec_mood_${targetDate}`, 
+        title: '오늘의 색',
+        completed: !!(dailyRecord && dailyRecord.mood),
+        mood: dailyRecord?.mood 
+      }
+    ];
 
     return {
-      todo: allData.todo.filter(item => item.date === targetDate),
-      routine: allData.routine.filter(item => item.date === targetDate),
-      record: dailyRecords,
+      todo: todos.filter(item => item.date === targetDate),
+      routine: routines.filter(item => item.date === targetDate),
+      record: recordItems,
     };
-  }, [allData, selectedDate]);
+  }, [todos, routines, records, selectedDate]);
 
   // 모달에서 수정된 내용을 메인 데이터에 반영
-  const handleSaveChanges = (modifiedModalData) => {
-    let getExp = 0;
-
-    setAllData(prev => {
-      const newData = { ...prev };
-      
-      ['todo', 'routine', 'record'].forEach(section => {
-        if (modifiedModalData[section]) {
-          modifiedModalData[section].forEach(modifiedItem => {
-            const index = newData[section].findIndex(item => item.id === modifiedItem.id);
-            const reward = section === 'record' ? 10 : 20;
-
-            // 기존에 있는 항목이면 업데이트, 없으면 추가
-            if (index !== -1) {
-              const oldItem = newData[section][index];
-                if (modifiedItem.completed && !oldItem.expGiven) {
-                    modifiedItem.expGiven = true;
-                    getExp += reward;  // 경험치 추가
-                }
-
-              newData[section][index] = modifiedItem;
-            } else {
-              if (modifiedItem.completed) {
-                  modifiedItem.expGiven = true;
-                  getExp += reward;  // 경험치 추가
-              } else {
-                  modifiedItem.expGiven = false;
-            }
-              newData[section].push(modifiedItem);
-            }
-          });
-        }
-      });
-
-      if (getExp > 0) {
-        setUser(prevUser => {
-          let newExp = prevUser.exp + getExp;
-          let newLevel = prevUser.level;
-          let newMaxExp = prevUser.maxExp;
-          let isLevelUp = false;
-
-          while (newExp >= newMaxExp) { // 여러 레벨 상승
-            newExp -= newMaxExp;
-            newLevel += 1;
-            newMaxExp += 200;
-            isLevelUp = true;
+  const handleSaveChanges = async (modifiedModalData) => {
+    try {
+      if (modifiedModalData.todo) {
+        for (const item of modifiedModalData.todo) {
+          const original = todos.find(t => t.id === item.id);
+          if (original && !original.completed && item.completed) {
+            if (user?.uid) await userService.incrementTodoStats(user.uid);
           }
-          return { 
-            ...prevUser, 
-            exp: newExp, 
-            level: newLevel, 
-            maxExp: newMaxExp 
-          };
-        });
+          await updateData('todo', item.id, item);
+        }
       }
+      if (modifiedModalData.routine) {
+        let totalExpReward = 0; // 이번 저장으로 얻을 총 경험치
 
-      return newData;
-    });
-    setModalVisible(false);
+        for (const item of modifiedModalData.routine) {
+          const original = routines.find(r => r.id === item.id);
+          
+          if (original) {
+            let expGiven = original.expGiven;
+            let updatedSubs = item.subs || original.subs || [];
+
+          if (item.completed && !expGiven) {
+            if (user?.uid) await userService.incrementRoutineStats(user.uid);
+            expGiven = true;
+          }
+
+          if (item.completed) {
+            updatedSubs = updatedSubs.map(s => ({ ...s, completed: true }));
+          } else {
+            updatedSubs = updatedSubs.map(s => ({ ...s, completed: false }));
+          }
+
+          await updateData('routine', item.id, {
+            ...item,
+            subs: updatedSubs,
+            expGiven: expGiven
+          });
+          }
+        }
+      }
+      setModalVisible(false);
+    } catch (e) {
+      console.error(e);
+      Alert.alert("오류", "데이터를 저장하지 못했습니다.");
+    }
   };
 
   return(
@@ -479,6 +469,7 @@ export default function HomeScreen(){
             selectedDate={selectedDate} 
             onDateSelect={dateSelect}
             today={todayStr}
+            records={records}
           />
           <StateList current={currentMonthCompleted} total={currentMonthTotal}/>
           <TodayList data={todayData}/>
@@ -515,6 +506,33 @@ const styles = StyleSheet.create({
   profileArea: {
     flexDirection: 'row',
     alignItems: 'center'
+  },
+  avatarContainer: {
+    position: 'relative',
+    marginRight: 12,
+  },
+  profileImageWrapper: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#F0F0F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  levelBadgeContainer: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  levelText: {
+    position: 'absolute',
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
   profileImage: {
     padding: 10,

@@ -1,10 +1,25 @@
 import React, { useState } from 'react';
 import { NoScaleText, NoScaleTextInput } from '../components/NoScaleText';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Keyboard, TouchableWithoutFeedback } from 'react-native';
+import { useAuth } from '../core/context/authContext';
 
 export default function SignIn({ navigation }) {
-    const [email, setEmail] = useState('');
-    const [pw, setpw] = useState('');
+  const [email, setEmail] = useState('');
+  const [pw, setpw] = useState('');
+
+  const { signIn } = useAuth();
+
+  const handleSignIn = async () => {
+    try {
+      await signIn(email, pw);
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Main' }],
+      });
+    } catch (error) {
+      Alert.alert("로그인 실패", error.message);
+    }
+  };
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
@@ -39,9 +54,7 @@ export default function SignIn({ navigation }) {
           <TouchableOpacity
             style={[styles.button, (!email || !pw) && styles.buttonDisabled]}
             disabled={!email || !pw}
-            onPress={() => {
-              navigation.navigate('Main');
-            }}
+            onPress={handleSignIn}
           >
             <NoScaleText style={styles.buttonText}>로그인</NoScaleText>
           </TouchableOpacity>

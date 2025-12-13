@@ -1,13 +1,26 @@
 import React, { useState } from 'react';
 import { NoScaleText, NoScaleTextInput } from '../components/NoScaleText';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Keyboard, TouchableWithoutFeedback } from 'react-native';
+import { useAuth } from '../core/context/authContext';
 
-export default function SignUpName({ navigation }) {
+export default function SignUpName({ navigation, route }) {
+  const { email, password } = route.params;
   const [nickname, setNickname] = useState('');
+  const { signUp } = useAuth();
 
   const totalSteps = 3; // 회원가입 총 단계
   const currentStep = 3; // 현재 단계
   const progressWidth = `${(currentStep / totalSteps) * 100}%`; // 진행바 길이
+
+  const handleSignUp = async () => {
+    try {
+      await signUp(email, password, nickname);
+      // 성공 시 완료 화면으로 이동
+      navigation.navigate('SignUpFin', { nickname });
+    } catch (error) {
+      Alert.alert("회원가입 실패", error.message);
+    }
+  };
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
@@ -32,9 +45,7 @@ export default function SignUpName({ navigation }) {
           <TouchableOpacity
             style={[styles.button, !nickname && styles.buttonDisabled]}
             disabled={!nickname}
-            onPress={() => {
-              navigation.navigate('SignUpFin', { nickname });
-            }}
+            onPress={handleSignUp}
           >
             <NoScaleText style={styles.buttonText}>계속</NoScaleText>
           </TouchableOpacity>

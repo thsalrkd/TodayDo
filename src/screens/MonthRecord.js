@@ -43,11 +43,14 @@ export default function MonthRecord({ date, onPrev, onNext, allData, onDayPress 
   };
 
   // 리스트
-  const renderItem = ({ item }) => (
-    <TouchableOpacity style={styles.listItem} onPress={() => onDayPress(item.date)} activeOpacity={0.7}>
-      {item.text && item.text.trim() !== '' ? (
+  const renderItem = ({ item }) => {
+    const content = item.content || '';
+
+    return(
+      <TouchableOpacity style={styles.listItem} onPress={() => onDayPress(item.date)} activeOpacity={0.7}>
+      {content && content.trim() !== '' ? (
         <NoScaleText style={styles.itemText} numberOfLines={3} ellipsizeMode="tail">
-          {item.text}
+          {content}
         </NoScaleText>
       ) : (
         <View style={{height: 20}} />
@@ -59,7 +62,8 @@ export default function MonthRecord({ date, onPrev, onNext, allData, onDayPress 
         )}
       </View>
     </TouchableOpacity>
-  );
+    );
+  };
 
   return (
     <View style={styles.container}>
