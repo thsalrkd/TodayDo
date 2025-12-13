@@ -53,7 +53,7 @@ class TodoStorage {
     try {
       const todos = await this.getAll();
       const newTodo = {
-        id: `t_${Date.now()}`,
+        id: `todo_${Date.now()}`,
         title: todoData.title,
         date: todoData.date,
         time: todoData.time || null,
@@ -66,10 +66,10 @@ class TodoStorage {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      
+
       todos.push(newTodo);
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
-      
+
       return newTodo;
     } catch (error) {
       console.error('Error adding todo:', error);
@@ -84,19 +84,19 @@ class TodoStorage {
     try {
       const todos = await this.getAll();
       const index = todos.findIndex(todo => todo.id === id);
-      
+
       if (index === -1) {
         throw new Error('Todo not found');
       }
-      
+
       todos[index] = {
         ...todos[index],
         ...updates,
         updatedAt: new Date().toISOString(),
       };
-      
+
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
-      
+
       return todos[index];
     } catch (error) {
       console.error('Error updating todo:', error);
@@ -111,33 +111,33 @@ class TodoStorage {
     try {
       const todos = await this.getAll();
       const index = todos.findIndex(todo => todo.id === todoId);
-      
+
       if (index === -1) {
         throw new Error('Todo not found');
       }
-      
+
       const newSub = {
         id: `sub_${Date.now()}`,
         title: subData.title,
         completed: false,
       };
-      
+
       if (!todos[index].subs) {
         todos[index].subs = [];
       }
-      
+
       todos[index].subs.push(newSub);
       todos[index].updatedAt = new Date().toISOString();
-      
+
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
-      
+
       return newSub;
     } catch (error) {
       console.error('Error adding sub:', error);
       throw error;
     }
   }
-  
+
   /**
    * Sub 업데이트
    */
@@ -145,26 +145,26 @@ class TodoStorage {
     try {
       const todos = await this.getAll();
       const todoIndex = todos.findIndex(todo => todo.id === todoId);
-      
+
       if (todoIndex === -1) {
         throw new Error('Todo not found');
       }
-      
+
       const todo = todos[todoIndex];
       const subIndex = todo.subs?.findIndex(sub => sub.id === subId);
-      
+
       if (subIndex === -1 || subIndex === undefined) {
         throw new Error('Sub not found');
       }
-      
+
       todo.subs[subIndex] = {
         ...todo.subs[subIndex],
         ...updates
       };
       todo.updatedAt = new Date().toISOString();
-      
+
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
-      
+
       return todo;
     } catch (error) {
       console.error('Error updating sub:', error);
@@ -179,26 +179,26 @@ class TodoStorage {
     try {
       const todos = await this.getAll();
       const index = todos.findIndex(todo => todo.id === todoId);
-      
+
       if (index === -1) {
         throw new Error('Todo not found');
       }
-      
+
       todos[index].subs = todos[index].subs?.filter(
         sub => sub.id !== subId
       ) || [];
-      
+
       todos[index].updatedAt = new Date().toISOString();
-      
+
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
-      
+
       return true;
     } catch (error) {
       console.error('Error deleting sub:', error);
       throw error;
     }
   }
-  
+
   /**
    * Todo 삭제
    */
@@ -206,9 +206,9 @@ class TodoStorage {
     try {
       const todos = await this.getAll();
       const filtered = todos.filter(todo => todo.id !== id);
-      
+
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
-      
+
       return true;
     } catch (error) {
       console.error('Error deleting todo:', error);
@@ -223,9 +223,9 @@ class TodoStorage {
     try {
       const todos = await this.getAll();
       const filtered = todos.filter(todo => !ids.includes(todo.id));
-      
+
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
-      
+
       return true;
     } catch (error) {
       console.error('Error deleting todos:', error);
@@ -242,6 +242,32 @@ class TodoStorage {
       return true;
     } catch (error) {
       console.error('Error clearing todos:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Firebase 동기화 전용 메서드
+   */
+  async sync(todoData) {
+    try {
+      if (!todoData.id) {
+        throw new Error('Sync requires todo ID');
+      }
+
+      const todos = await this.getAll();
+      const index = todos.findIndex(t => t.id === todoData.id);
+
+      if (index >= 0) {
+        todos[index] = todoData;
+      } else {
+        todos.push(todoData);
+      }
+
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
+      return todoData;
+    } catch (error) {
+      console.error('Sync todo error:', error);
       throw error;
     }
   }

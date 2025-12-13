@@ -53,7 +53,7 @@ class RoutineStorage {
     try {
       const routines = await this.getAll();
       const newRoutine = {
-        id: `r_${Date.now()}`,
+        id: `routine_${Date.now()}`,
         title: routineData.title,
         date: routineData.date,
         time: routineData.time || null,
@@ -66,10 +66,10 @@ class RoutineStorage {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      
+
       routines.push(newRoutine);
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(routines));
-      
+
       return newRoutine;
     } catch (error) {
       console.error('Error adding routine:', error);
@@ -84,19 +84,19 @@ class RoutineStorage {
     try {
       const routines = await this.getAll();
       const index = routines.findIndex(routine => routine.id === id);
-      
+
       if (index === -1) {
         throw new Error('Routine not found');
       }
-      
+
       routines[index] = {
         ...routines[index],
         ...updates,
         updatedAt: new Date().toISOString(),
       };
-      
+
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(routines));
-      
+
       return routines[index];
     } catch (error) {
       console.error('Error updating routine:', error);
@@ -111,33 +111,33 @@ class RoutineStorage {
     try {
       const routines = await this.getAll();
       const index = routines.findIndex(routine => routine.id === routineId);
-      
+
       if (index === -1) {
         throw new Error('Routine not found');
       }
-      
+
       const newSub = {
         id: `s_${Date.now()}`,
         title: subData.title,
         completed: false,
       };
-      
+
       if (!routines[index].subs) {
         routines[index].subs = [];
       }
-      
+
       routines[index].subs.push(newSub);
       routines[index].updatedAt = new Date().toISOString();
-      
+
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(routines));
-      
+
       return newSub;
     } catch (error) {
       console.error('Error adding sub:', error);
       throw error;
     }
   }
-  
+
   /**
    * Sub 업데이트
    */
@@ -145,26 +145,26 @@ class RoutineStorage {
     try {
       const routines = await this.getAll();
       const routineIndex = routines.findIndex(routine => routine.id === routineId);
-      
+
       if (routineIndex === -1) {
         throw new Error('Routine not found');
       }
-      
+
       const routine = routines[routineIndex];
       const subIndex = routine.subs?.findIndex(sub => sub.id === subId);
-      
+
       if (subIndex === -1 || subIndex === undefined) {
         throw new Error('Sub not found');
       }
-      
+
       routine.subs[subIndex] = {
         ...routine.subs[subIndex],
         ...updates
       };
       routine.updatedAt = new Date().toISOString();
-      
+
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(routines));
-      
+
       return routine;
     } catch (error) {
       console.error('Error updating sub:', error);
@@ -179,19 +179,19 @@ class RoutineStorage {
     try {
       const routines = await this.getAll();
       const index = routines.findIndex(routine => routine.id === routineId);
-      
+
       if (index === -1) {
         throw new Error('Routine not found');
       }
-      
+
       routines[index].subs = routines[index].subs?.filter(
         sub => sub.id !== subId
       ) || [];
-      
+
       routines[index].updatedAt = new Date().toISOString();
-      
+
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(routines));
-      
+
       return true;
     } catch (error) {
       console.error('Error deleting sub:', error);
@@ -206,9 +206,9 @@ class RoutineStorage {
     try {
       const routines = await this.getAll();
       const filtered = routines.filter(routine => routine.id !== id);
-      
+
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
-      
+
       return true;
     } catch (error) {
       console.error('Error deleting routine:', error);
@@ -223,9 +223,9 @@ class RoutineStorage {
     try {
       const routines = await this.getAll();
       const filtered = routines.filter(routine => !ids.includes(routine.id));
-      
+
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
-      
+
       return true;
     } catch (error) {
       console.error('Error deleting routines:', error);
@@ -245,6 +245,33 @@ class RoutineStorage {
       throw error;
     }
   }
+
+  /**
+   * Firebase 동기화 전용 메서드
+   */
+  async sync(routineData) {
+    try {
+      if (!routineData.id) {
+        throw new Error('Sync requires routine ID');
+      }
+
+      const routines = await this.getAll();
+      const index = routines.findIndex(r => r.id === routineData.id);
+
+      if (index >= 0) {
+        routines[index] = routineData;
+      } else {
+        routines.push(routineData);
+      }
+
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(routines));
+      return routineData;
+    } catch (error) {
+      console.error('Sync routine error:', error);
+      throw error;
+    }
+  }
+
 }
 
 export default new RoutineStorage();
