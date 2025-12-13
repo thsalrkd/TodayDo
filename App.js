@@ -18,13 +18,11 @@ import ForgotPWNewPW from './src/screens/ForgotPW_NewPW';
 import ForgotPWFin from './src/screens/ForgotPW_Fin';
 import AccountManagement from './src/screens/AccountManagement';
 import ChangePW from './src/screens/ChangePW';
-//import Social from './src/screens/Social';
 import NotificationScreen from './src/screens/NotificationScreen';
 import BottomNavigator from './src/navigation/BottomNavigator';
 
 // components for testing
-import StorageTestScreen from './src/ui/test/StorageTestScreen';
-import AuthTestScreen from './src/ui/test/AuthTestScreen';
+
 import { DataProvider } from './src/core/context/dataContext';
 
 const Stack = createNativeStackNavigator();
@@ -163,16 +161,6 @@ export default function App() {
               })}
             />
             <Stack.Screen
-              name="Social"
-              component={Social}
-              options={({ navigation }) => ({
-                title: '친구',
-                headerLeft: () => <BackButton onPress={() => navigation.goBack()} />,
-                headerShown: true,
-                headerShadowVisible: false,
-              })}
-            />
-            <Stack.Screen
               name="Notification"
               component={NotificationScreen}
               options={({ navigation }) => ({
@@ -181,16 +169,6 @@ export default function App() {
                 headerShown: true,
                 headerShadowVisible: false,
               })}
-            />
-            <Stack.Screen
-              name="StorageTest"
-              component={StorageTestScreen}
-              options={{ title: 'Storage 테스트' }}
-            />
-            <Stack.Screen
-              name="AuthTest"
-              component={AuthTestScreen}
-              options={{ title: 'Auth 테스트' }}
             />
           </Stack.Navigator>
         </NavigationContainer>
