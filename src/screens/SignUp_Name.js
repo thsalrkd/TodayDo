@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NoScaleText, NoScaleTextInput } from '../components/NoScaleText';
-import { View, TouchableOpacity, StyleSheet, Keyboard, TouchableWithoutFeedback, Alert, ActivityIndicator } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Keyboard, TouchableWithoutFeedback, Alert } from 'react-native';
 import { useAuth } from '../core/context/authContext';
 
 export default function SignUpName({ navigation, route }) {
@@ -8,19 +8,25 @@ export default function SignUpName({ navigation, route }) {
   const [loading, setLoading] = useState(false);
   const { completeSignUp } = useAuth();
 
-  const totalSteps = 3;
-  const currentStep = 3;
-  const progressWidth = `${(currentStep / totalSteps) * 100}%`;
+  const totalSteps = 3; // 회원가입 총 단계
+  const currentStep = 3; // 현재 단계
+  const progressWidth = `${(currentStep / totalSteps) * 100}%`; // 진행바 길이
 
-  const handleSignUp = async () => {
-    if (!nickname) return;
+  const handleComplete = async () => {
+    if (!nickname.trim()) {
+      Alert.alert('입력 오류', '닉네임을 입력해주세요.');
+      return;
+    }
 
     setLoading(true);
     try {
-      await completeSignUp(nickname.trim());
-      navigation.navigate('SignUpFin', { nickname: nickname.trim() });
+      // 3단계: 닉네임 설정 및 회원가입 완료
+      const userData = await completeSignUp(nickname.trim());
+      
+      // 성공 시 완료 화면으로 이동
+      navigation.navigate('SignUpFin', { nickname: userData.nickname });
     } catch (error) {
-      Alert.alert('회원가입 실패', error.message || '닉네임 설정 중 오류가 발생했습니다.');
+      Alert.alert('회원가입 실패', error.message);
     } finally {
       setLoading(false);
     }
@@ -50,13 +56,11 @@ export default function SignUpName({ navigation, route }) {
           <TouchableOpacity
             style={[styles.button, (!nickname.trim() || loading) && styles.buttonDisabled]}
             disabled={!nickname.trim() || loading}
-            onPress={handleSignUp}
+            onPress={handleComplete}
           >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <NoScaleText style={styles.buttonText}>계속</NoScaleText>
-            )}
+            <NoScaleText style={styles.buttonText}>
+              {loading ? '처리중...' : '계속'}
+            </NoScaleText>
           </TouchableOpacity>
         </View>
       </View>
@@ -73,12 +77,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 40,
     marginTop: 8,
-
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.5,
     shadowRadius: 6,
-
     elevation: 6,
   },
   progressBar: {

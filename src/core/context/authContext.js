@@ -8,17 +8,30 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const isLoggingOut = useRef(false);
+  const isSigningUp = useRef(false); // 회원가입 중 플래그 추가
 
   useEffect(() => {
     // 인증 상태 변경 리스너
     const unsubscribe = authService.onAuthStateChanged(async (firebaseUser) => {
-      // 로그아웃 중이면 처리 스킵
-      if (isLoggingOut.current) {
+      // 로그아웃 중이거나 회원가입 중이면 처리 스킵
+      if (isLoggingOut.current || isSigningUp.current) {
         return;
       }
 
       if (firebaseUser) {
         console.log('[Auth] User logged in:', firebaseUser.uid);
+        
+        // 회원가입 중일 때는 세션 시작하지 않음
+        if (isSigningUp.current) {
+          console.log('[Auth] Sign up in progress - skipping session start');
+          setUser({
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            nickname: firebaseUser.displayName
+          });
+          return;
+        }
+        
         setUser({
           uid: firebaseUser.uid,
           email: firebaseUser.email,
@@ -37,8 +50,8 @@ export const AuthProvider = ({ children }) => {
       } else {
         console.log('[Auth] User logged out');
         
-        // 현재 사용자 정보가 있고, 로그아웃 중이 아닐 때만 세션 종료
-        if (user && !isLoggingOut.current) {
+        // 현재 사용자 정보가 있고, 로그아웃 중이 아니며, 회원가입 중이 아닐 때만 세션 종료
+        if (user && !isLoggingOut.current && !isSigningUp.current) {
           try {
             await sessionManager.endSession(user.uid);
           } catch (error) {
@@ -62,9 +75,11 @@ export const AuthProvider = ({ children }) => {
    */
   const createAccount = async (email, password) => {
     try {
+      isSigningUp.current = true; // 회원가입 시작
       const accountData = await authService.createAccount(email, password);
       return accountData;
     } catch (error) {
+      isSigningUp.current = false;
       throw error;
     }
   };
@@ -96,8 +111,17 @@ export const AuthProvider = ({ children }) => {
    */
   const completeSignUp = async (nickname) => {
     try {
-      return await authService.completeSignUp(nickname);
+      const userData = await authService.completeSignUp(nickname);
+      
+      // 회원가입 완료 후 로그아웃되므로 user 상태 초기화
+      setUser(null);
+      
+      // 회원가입 플로우 종료
+      isSigningUp.current = false;
+      
+      return userData;
     } catch (error) {
+      isSigningUp.current = false;
       throw error;
     }
   };

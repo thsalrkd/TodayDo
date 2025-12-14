@@ -18,6 +18,7 @@ class AuthService {
      */
     async createAccount(email, password) {
         try {
+            console.log('create accout');
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
             const user = userCredential.user;
 
@@ -82,36 +83,45 @@ class AuthService {
      * (이메일 인증 완료 후 호출)
      */
     async completeSignUp(nickname) {
-        try {
-            const user = auth.currentUser;
-            if (!user) throw new Error('로그인이 필요합니다.');
+    try {
+        const user = auth.currentUser;
+        if (!user) throw new Error('로그인이 필요합니다.');
 
-            // 최신 상태 확인
-            await user.reload();
+        // 최신 상태 확인
+        await user.reload();
 
-            if (!user.emailVerified) {
-                throw new Error('이메일 인증이 필요합니다.');
-            }
-
-            // Firebase Auth 프로필 업데이트
-            await updateProfile(user, {
-                displayName: nickname
-            });
-
-            // Firestore에 사용자 프로필 생성
-            await userService.createUserProfile(user.uid, user.email, nickname);
-
-            return {
-                uid: user.uid,
-                email: user.email,
-                nickname: nickname,
-                emailVerified: true
-            };
-        } catch (error) {
-            console.error('Complete SignUp Error:', error);
-            throw error;
+        if (!user.emailVerified) {
+            throw new Error('이메일 인증이 필요합니다.');
         }
+
+        // Firebase Auth 프로필 업데이트
+        await updateProfile(user, {
+            displayName: nickname
+        });
+
+        // Firestore에 사용자 프로필 생성
+        await userService.createUserProfile(user.uid, user.email, nickname);
+
+        // 이메일 인증 상태 업데이트
+        await userService.updateEmailVerified(user.uid, true);
+
+        const userData = {
+            uid: user.uid,
+            email: user.email,
+            nickname: nickname,
+            emailVerified: true
+        };
+
+        await signOut(auth);
+        console.log('Sign up completed');
+        
+        return userData;
+
+    } catch (error) {
+        console.error('Complete SignUp Error:', error);
+        throw error;
     }
+}
 
     /**
      * 로그인

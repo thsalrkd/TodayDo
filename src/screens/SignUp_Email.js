@@ -1,74 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, TouchableOpacity, StyleSheet, Keyboard, TouchableWithoutFeedback, ScrollView, ActivityIndicator, Text, Alert, } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Keyboard, TouchableWithoutFeedback, ScrollView, Alert } from 'react-native';
 import { NoScaleText, NoScaleTextInput } from '../components/NoScaleText';
-
-import AuthService from '../core/firebase/authService';
+import { useAuth } from '../core/context/authContext';
 
 export default function SignUpEmail({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [loading, setLoading] = useState(false);
+  const { createAccount } = useAuth();
 
-  // 유효성 검사용 상태
-  const [emailError, setEmailError] = useState('');
-  const [passwordError, setPasswordError] = useState('');
-  const [passwordConfirmError, setPasswordConfirmError] = useState('');
-
-  const validateEmail = (email) => {
-    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return re.test(email);
-  };
-
-  const passwordRegex = /^[A-Za-z0-9!"#$%&'()*+,\-./:;<=>?@[₩\]^_`{|}~]+$/;
-
-  const validateInputs = () => {
-    let valid = true;
-
-    if (!validateEmail(email)) {
-      setEmailError('유효한 이메일 주소를 입력하세요.');
-      valid = false;
-    } else {
-      setEmailError('');
-    }
-
-    if (password.length < 6 && password.lenght >=0) {
-      setPasswordError('비밀번호는 6자 이상이어야 합니다.');
-      valid = false;
-    } else if (password.length > 32) {
-      setPasswordError('비밀번호는 32자 이하여야 합니다.');
-      valid = false;
-    } else if (!passwordRegex.test(password)) {
-      setPasswordError('허용되는 특수문자는 ! " # $ % &  ( ) * + , - . / : ; < = > ? @ [ ₩ ] ^ _ ` { | } ~ 입니다.');
-      valid = false;
-    } else if (!/[A-Za-z]/.test(password)) {
-      setPasswordError('비밀번호에 최소 1개의 영어가 포함되어야 합니다.');
-      valid = false;
-    } else if (!/[0-9]/.test(password)) {
-      setPasswordError('비밀번호에 최소 1개의 숫자가 포함되어야 합니다.');
-      valid = false;
-    } else if (!/[!"#$%&'()*+,\-./:;<=>?@[₩\]^_`{|}~]/.test(password)) {
-      setPasswordError('비밀번호에 최소 1개의 특수문자가 포함되어야 합니다.');
-      valid = false;
-    } else {
-      setPasswordError('');
-    }
-
-    if (password !== passwordConfirm) {
-      setPasswordConfirmError('비밀번호가 일치하지 않습니다.');
-      valid = false;
-    } else {
-      setPasswordConfirmError('');
-    }
-
-    return valid;
-  };
-
-  const isButtonValid = 
-    email.length > 0 &&
-    password.length >= 6 && 
-    password === passwordConfirm &&
-    validateEmail(email);
+  const isButtonValid = password.length >= 6 && password === passwordConfirm && email.length > 0;
 
   const totalSteps = 3; // 회원가입 총 단계
   const currentStep = 1; // 현재 단계
@@ -88,21 +30,20 @@ export default function SignUpEmail({ navigation }) {
     };
   }, []);
 
-  const handleSignUp = async () => {
-    if (!validateInputs()) {
-      return;
-    }
+  const handleContinue = async () => {
+    if (!isButtonValid) return;
 
     setLoading(true);
     try {
-      // 회원가입 + 인증 메일 발송
-      const result = await AuthService.createAccount(email.trim(), password);
-      setLoading(false);
-      navigation.navigate('EmailVerification', { email: email.trim() });
+      // 1단계: 계정 생성 및 인증 메일 발송
+      await createAccount(email, password);
       
+      // 성공 시 이메일 인증 화면으로 이동
+      navigation.navigate('EmailVerification', { email });
     } catch (error) {
+      Alert.alert('회원가입 실패', error.message);
+    } finally {
       setLoading(false);
-      Alert.alert('회원가입 실패', error.message || '문제가 발생했습니다.');
     }
   };
 
@@ -129,47 +70,22 @@ export default function SignUpEmail({ navigation }) {
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
-                onBlur={() => {
-                  if (email.length > 0 && !validateEmail(email)) {
-                    setEmailError('유효한 이메일 주소를 입력하세요.');
-                  } else {
-                    setEmailError('');
-                  }
-                }}
+                editable={!loading}
               />
-              {!!emailError && <Text style={styles.errorText}>{emailError}</Text>}
             </View>
 
             <View style={styles.inputContainer}>
               <NoScaleText style={styles.label1}>비밀번호 입력</NoScaleText>
               <NoScaleTextInput
                 style={styles.input}
-                placeholder="password"
+                placeholder="password (최소 6자)"
                 placeholderTextColor="#bbb"
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={true}
                 autoCapitalize="none"
-                onBlur={() => {
-                  if (password.length >= 0 && password.length < 6) {
-                    setPasswordError('비밀번호는 6자 이상이어야 합니다.');
-                  } else if (password.length > 32) {
-                    setPasswordError('비밀번호는 32자 이하여야 합니다.');
-                  } else if (!passwordRegex.test(password)) {
-                    setPasswordError('허용되는 특수문자는 ! " # $ % &  ( ) * + , - . / : ; < = > ? @ [ ₩ ] ^ _ ` { | } ~  입니다.');
-                  } else if (!/[A-Za-z]/.test(password)) {
-                    setPasswordError('비밀번호에 최소 1개의 영어가 포함되어야 합니다.');
-                  } else if (!/[0-9]/.test(password)) {
-                    setPasswordError('비밀번호에 최소 1개의 숫자가 포함되어야 합니다.');
-                  } else if (!/[!"#$%&'()*+,\-./:;<=>?@[₩\]^_`{|}~]/.test(password)) {
-                    setPasswordError('비밀번호에 최소 1개의 특수문자가 포함되어야 합니다.');
-                  } else {
-                    setPasswordError('');
-                  }
-                }}
+                editable={!loading}
               />
-              {!!passwordError && <Text style={styles.errorText}>{passwordError}</Text>}
-
               <NoScaleText style={styles.label2}>비밀번호 확인</NoScaleText>
               <NoScaleTextInput
                 style={styles.input}
@@ -179,27 +95,18 @@ export default function SignUpEmail({ navigation }) {
                 onChangeText={setPasswordConfirm}
                 secureTextEntry={true}
                 autoCapitalize="none"
-                onBlur={() => {
-                  if (passwordConfirm.length > 0 && password !== passwordConfirm) {
-                    setPasswordConfirmError('비밀번호가 일치하지 않습니다.');
-                  } else {
-                    setPasswordConfirmError('');
-                  }
-                }}
+                editable={!loading}
               />
-              {!!passwordConfirmError && <Text style={styles.errorText}>{passwordConfirmError}</Text>}
             </View>
 
             <TouchableOpacity
-              style={[styles.button, !isButtonValid && styles.buttonDisabled]}
+              style={[styles.button, (!isButtonValid || loading) && styles.buttonDisabled]}
               disabled={!isButtonValid || loading}
-              onPress={handleSignUp}
+              onPress={handleContinue}
             >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <NoScaleText style={styles.buttonText}>계속</NoScaleText>
-              )}
+              <NoScaleText style={styles.buttonText}>
+                {loading ? '처리중...' : '계속'}
+              </NoScaleText>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -208,7 +115,7 @@ export default function SignUpEmail({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+export const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f9f9f9',
@@ -217,14 +124,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 40,
     marginTop: 8,
-
-    //iOS 그림자 속성
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.5,
     shadowRadius: 6,
-
-    //Android 그림자 속성
     elevation: 6,
   },
   progressBar: {
@@ -266,11 +169,6 @@ const styles = StyleSheet.create({
     height: 40,
     fontSize: 14,
     color: '#333',
-  },
-  errorText: {
-    color: '#E50000',
-    fontSize: 12,
-    marginTop: 4,
   },
   button: {
     backgroundColor: '#3A9CFF',
