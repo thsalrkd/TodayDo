@@ -79,52 +79,134 @@ export const DataProvider = ({ children }) => {
     unsubscribes.current.todos = todoService.subscribeTodos(userId, async (fbTodos) => {
       console.log('[Data] Todos updated from Firebase:', fbTodos.length);
       
-      // 로컬 변경 중인 항목은 제외하고 업데이트
-      const filteredTodos = fbTodos.filter(todo => !pendingLocalChanges.current.has(todo.id));
-      
-      // 로컬 스토리지 업데이트
-      await todoStorage.clear();
-      for (const todo of fbTodos) {
-        await todoStorage.sync(todo);
+      try {
+        // 현재 로컬 데이터 가져오기
+        const localTodos = await todoStorage.getAll();
+        
+        // 로컬 변경 중인 항목 제외 (pendingLocalChanges)
+        const pendingIds = Array.from(pendingLocalChanges.current);
+        console.log('[Data] Pending local changes:', pendingIds);
+        
+        // Firebase 데이터를 기준으로 로컬 업데이트
+        // - pendingLocalChanges에 있는 항목은 건너뜀
+        // - 나머지는 Firebase 데이터로 동기화
+        
+        // 로컬에서 삭제해야 할 항목 찾기 (Firebase, pending 양쪽에 모두 없는 것)
+        const fbTodoIds = new Set(fbTodos.map(t => t.id));
+        const toDelete = localTodos.filter(local => 
+          !fbTodoIds.has(local.id) && !pendingLocalChanges.current.has(local.id)
+        );
+        
+        // Firebase에서 온 데이터 중 pending이 아닌 것만 업데이트
+        const toSync = fbTodos.filter(fb => !pendingLocalChanges.current.has(fb.id));
+        
+        // 삭제 실행
+        for (const item of toDelete) {
+          await todoStorage.delete(item.id);
+          console.log('[Data] Removed stale todo:', item.id);
+        }
+        
+        // 동기화 실행
+        for (const todo of toSync) {
+          await todoStorage.sync(todo);
+        }
+        
+        console.log('[Data] Todos synced - Updated:', toSync.length, 'Removed:', toDelete.length);
+        
+        // UI 업데이트
+        await loadLocalData();
+      } catch (error) {
+        console.error('[Data] Todos sync error:', error);
       }
-      
-      await loadLocalData();
     });
 
     // Routines 실시간 구독
     unsubscribes.current.routines = routineService.subscribeRoutines(userId, async (fbRoutines) => {
       console.log('[Data] Routines updated from Firebase:', fbRoutines.length);
       
-      await routineStorage.clear();
-      for (const routine of fbRoutines) {
-        await routineStorage.sync(routine);
+      try {
+        const localRoutines = await routineStorage.getAll();
+        const fbRoutineIds = new Set(fbRoutines.map(r => r.id));
+        
+        // 삭제할 항목 (Firebase x, pending x)
+        const toDelete = localRoutines.filter(local => 
+          !fbRoutineIds.has(local.id) && !pendingLocalChanges.current.has(local.id)
+        );
+        
+        // 동기화할 항목 (pending x)
+        const toSync = fbRoutines.filter(fb => !pendingLocalChanges.current.has(fb.id));
+        
+        for (const item of toDelete) {
+          await routineStorage.delete(item.id);
+        }
+        
+        for (const routine of toSync) {
+          await routineStorage.sync(routine);
+        }
+        
+        console.log('[Data] Routines synced - Updated:', toSync.length, 'Removed:', toDelete.length);
+        await loadLocalData();
+      } catch (error) {
+        console.error('[Data] Routines sync error:', error);
       }
-      
-      await loadLocalData();
     });
 
     // Records 실시간 구독
     unsubscribes.current.records = recordService.subscribeRecords(userId, async (fbRecords) => {
       console.log('[Data] Records updated from Firebase:', fbRecords.length);
       
-      await recordStorage.clear();
-      for (const record of fbRecords) {
-        await recordStorage.sync(record);
+      try {
+        const localRecords = await recordStorage.getAll();
+        const fbRecordIds = new Set(fbRecords.map(r => r.id));
+        
+        const toDelete = localRecords.filter(local => 
+          !fbRecordIds.has(local.id) && !pendingLocalChanges.current.has(local.id)
+        );
+        
+        const toSync = fbRecords.filter(fb => !pendingLocalChanges.current.has(fb.id));
+        
+        for (const item of toDelete) {
+          await recordStorage.delete(item.id);
+        }
+        
+        for (const record of toSync) {
+          await recordStorage.sync(record);
+        }
+        
+        console.log('[Data] Records synced - Updated:', toSync.length, 'Removed:', toDelete.length);
+        await loadLocalData();
+      } catch (error) {
+        console.error('[Data] Records sync error:', error);
       }
-      
-      await loadLocalData();
     });
 
     // Tags 실시간 구독
     unsubscribes.current.tags = tagService.subscribeTags(userId, async (fbTags) => {
       console.log('[Data] Tags updated from Firebase:', fbTags.length);
       
-      await tagStorage.clear();
-      for (const tag of fbTags) {
-        await tagStorage.sync(tag);
+      try {
+        const localTags = await tagStorage.getAll();
+        const fbTagIds = new Set(fbTags.map(t => t.id));
+        
+        const toDelete = localTags.filter(local => 
+          !fbTagIds.has(local.id) && !pendingLocalChanges.current.has(local.id)
+        );
+        
+        const toSync = fbTags.filter(fb => !pendingLocalChanges.current.has(fb.id));
+        
+        for (const item of toDelete) {
+          await tagStorage.delete(item.id);
+        }
+        
+        for (const tag of toSync) {
+          await tagStorage.sync(tag);
+        }
+        
+        console.log('[Data] Tags synced - Updated:', toSync.length, 'Removed:', toDelete.length);
+        await loadLocalData();
+      } catch (error) {
+        console.error('[Data] Tags sync error:', error);
       }
-      
-      await loadLocalData();
     });
 
     setSyncStatus(prev => ({
@@ -193,7 +275,7 @@ export const DataProvider = ({ children }) => {
     return cleanupListeners;
   }, [user, authLoading, loadLocalData, setupRealtimeListeners, cleanupListeners]);
 
-  // 앱 포그라운드 복귀 시 로컬 데이터 새로고침
+  // 앱 포그라운드 복귀 시 로컬 데이터만 새로고침
   useEffect(() => {
     if (!user) return;
 
@@ -255,6 +337,7 @@ export const DataProvider = ({ children }) => {
       // 로컬 변경 추적에서 제거 (짧은 지연 후)
       setTimeout(() => {
         pendingLocalChanges.current.delete(data.id);
+        console.log('[Data] Removed from pending:', data.id);
       }, 1000);
 
     } catch (error) {
@@ -277,11 +360,12 @@ export const DataProvider = ({ children }) => {
       let savedData;
       let isNew;
 
-      // 1. 로컬 변경 추적에 추가 (실시간 구독 충돌 방지)
+      // 로컬 변경 추적에 추가 (실시간 구독 충돌 방지)
       const itemId = data.id || `${type}_${Date.now()}`;
       pendingLocalChanges.current.add(itemId);
+      console.log('[Data] Added to pending:', itemId);
 
-      // 2. 로컬 스토리지에 즉시 저장 (Optimistic Update)
+      // 로컬 스토리지에 즉시 저장 (Optimistic Update)
       if (type === 'todo') {
         savedData = await todoStorage.add(data);
         isNew = true;
@@ -297,12 +381,12 @@ export const DataProvider = ({ children }) => {
         isNew = true;
       }
 
-      // 3. UI 즉시 업데이트
+      // UI 즉시 업데이트
       await loadLocalData();
 
       console.log(`[Data] ${type} saved locally (${isNew ? 'new' : 'update'})`);
 
-      // 4. 백그라운드에서 Firebase 동기화
+      // 백그라운드에서 Firebase 동기화
       if (user) {
         setSyncStatus(prev => ({
           ...prev,
@@ -317,7 +401,9 @@ export const DataProvider = ({ children }) => {
 
     } catch (error) {
       console.error(`[Data] Save ${type} error:`, error);
-      pendingLocalChanges.current.delete(data.id);
+      if (data.id) {
+        pendingLocalChanges.current.delete(data.id);
+      }
       throw error;
     }
   }, [user, loadLocalData, pushToFirebase]);
@@ -325,10 +411,11 @@ export const DataProvider = ({ children }) => {
   // 데이터 삭제
   const deleteData = useCallback(async (type, id) => {
     try {
-      // 1. 로컬 변경 추적
+      // 로컬 변경 추적
       pendingLocalChanges.current.add(id);
+      console.log('[Data] Added to pending (delete):', id);
 
-      // 2. 로컬 삭제 (Optimistic Update)
+      // 로컬 삭제 (Optimistic Update)
       if (type === 'todo') {
         await todoStorage.delete(id);
       } else if (type === 'routine') {
@@ -339,12 +426,12 @@ export const DataProvider = ({ children }) => {
         await tagStorage.delete(id);
       }
 
-      // 3. UI 즉시 업데이트
+      // UI 즉시 업데이트
       await loadLocalData();
 
       console.log(`[Data] ${type} deleted locally (optimistic update)`);
 
-      // 4. 백그라운드에서 Firebase 동기화
+      // 백그라운드에서 Firebase 동기화
       if (user) {
         if (type === 'todo') {
           await todoService.delete(user.uid, id);
@@ -362,6 +449,7 @@ export const DataProvider = ({ children }) => {
       // 추적에서 제거
       setTimeout(() => {
         pendingLocalChanges.current.delete(id);
+        console.log('[Data] Removed from pending (delete):', id);
       }, 1000);
 
     } catch (error) {
@@ -374,10 +462,11 @@ export const DataProvider = ({ children }) => {
   // 데이터 업데이트
   const updateData = useCallback(async (type, id, updates) => {
     try {
-      // 1. 로컬 변경 추적
+      // 로컬 변경 추적
       pendingLocalChanges.current.add(id);
+      console.log('[Data] Added to pending (update):', id);
 
-      // 2. 로컬 업데이트 (Optimistic Update)
+      // 로컬 업데이트 (Optimistic Update)
       let updatedData;
       if (type === 'todo') {
         updatedData = await todoStorage.update(id, updates);
@@ -389,12 +478,12 @@ export const DataProvider = ({ children }) => {
         updatedData = await tagStorage.update(id, updates);
       }
 
-      // 3. UI 즉시 업데이트
+      // UI 즉시 업데이트
       await loadLocalData();
 
       console.log(`[Data] ${type} updated locally (optimistic update)`);
 
-      // 4. 백그라운드에서 Firebase 동기화
+      // 백그라운드에서 Firebase 동기화
       if (user && updatedData) {
         pushToFirebase(type, updatedData, false);
       } else {
@@ -412,7 +501,7 @@ export const DataProvider = ({ children }) => {
   const refreshData = useCallback(async () => {
     if (user) {
       setSyncing(true);
-      // 실시간 구독이 이미 동작 중이므로 로컬만 새로고침
+      // 로컬 새로고침 (실시간 구독이 이미 동작 중)
       await loadLocalData();
       setSyncing(false);
     } else {

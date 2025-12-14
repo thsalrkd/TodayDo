@@ -5,38 +5,111 @@ import {
     sendPasswordResetEmail,
     updateProfile,
     updatePassword,
-    onAuthStateChanged
+    onAuthStateChanged,
+    sendEmailVerification
 } from 'firebase/auth';
 import { auth } from './config';
 import userService from './userService';
 
 class AuthService {
     /**
-     * 회원가입
+     * 1단계: 이메일/비밀번호로 계정 생성 + 인증 메일 발송
+     * (닉네임은 아직 설정하지 않음)
      */
-    async signUp(email, password, nickname) {
+    async createAccount(email, password) {
         try {
-            // 1. Firebase Auth 계정 생성
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
             const user = userCredential.user;
 
-            // 2. 프로필 업데이트 (displayName)
-            await updateProfile(user, {
-                displayName: nickname
-            });
-
-            // 3. Firestore에 사용자 프로필 생성 (userService 사용)
-            await userService.createUserProfile(user.uid, email, nickname);
+            // 이메일 인증 메일 발송
+            await sendEmailVerification(user);
+            console.log('✅ Verification email sent to:', email);
 
             return {
                 uid: user.uid,
                 email: user.email,
-                nickname: nickname
+                emailVerified: false
             };
         } catch (error) {
-            console.error('SignUp Error:', error);
+            console.error('Create Account Error:', error);
             const errorMessage = this._handleAuthError(error);
             throw new Error(errorMessage);
+        }
+    }
+
+    /**
+     * 2단계: 이메일 인증 상태 확인
+     */
+    async checkEmailVerification() {
+        try {
+            const user = auth.currentUser;
+            if (!user) throw new Error('로그인이 필요합니다.');
+
+            // Firebase에서 최신 상태 가져오기
+            await user.reload();
+
+            return user.emailVerified;
+        } catch (error) {
+            console.error('Check email verification error:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 인증 이메일 재발송
+     */
+    async resendVerificationEmail() {
+        try {
+            const user = auth.currentUser;
+            if (!user) throw new Error('로그인이 필요합니다.');
+
+            await user.reload();
+            
+            if (user.emailVerified) {
+                throw new Error('이미 인증된 계정입니다.');
+            }
+
+            await sendEmailVerification(user);
+            console.log('✅ Verification email resent');
+        } catch (error) {
+            console.error('Resend verification email error:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 3단계: 닉네임 설정 + Firestore 프로필 생성
+     * (이메일 인증 완료 후 호출)
+     */
+    async completeSignUp(nickname) {
+        try {
+            const user = auth.currentUser;
+            if (!user) throw new Error('로그인이 필요합니다.');
+
+            // 최신 상태 확인
+            await user.reload();
+
+            if (!user.emailVerified) {
+                throw new Error('이메일 인증이 필요합니다.');
+            }
+
+            // Firebase Auth 프로필 업데이트
+            await updateProfile(user, {
+                displayName: nickname
+            });
+
+            // Firestore에 사용자 프로필 생성
+            await userService.createUserProfile(user.uid, user.email, nickname);
+
+            return {
+                uid: user.uid,
+                email: user.email,
+                nickname: nickname,
+                emailVerified: true
+            };
+        } catch (error) {
+            console.error('Complete SignUp Error:', error);
+            throw error;
         }
     }
 
@@ -48,13 +121,22 @@ class AuthService {
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
             const user = userCredential.user;
 
-            // Firestore에서 사용자 프로필 가져오기 (userService 사용)
+            // Firebase Auth의 최신 상태 가져오기
+            await user.reload();
+
+            // Firestore 프로필 가져오기
             const userProfile = await userService.getUserProfile(user.uid);
+
+            // Firebase Auth와 Firestore 동기화
+            if (user.emailVerified && !userProfile.emailVerified) {
+                await userService.updateEmailVerified(user.uid, true);
+            }
 
             return {
                 uid: user.uid,
                 email: user.email,
                 nickname: userProfile.nickname,
+                emailVerified: user.emailVerified,
                 level: userProfile.level,
                 exp: userProfile.exp,
                 maxExp: userProfile.maxExp,
@@ -129,7 +211,7 @@ class AuthService {
                 displayName: newNickname
             });
 
-            // Firestore 업데이트 (userService 사용)
+            // Firestore 업데이트
             await userService.updateNickname(user.uid, newNickname);
 
             return {

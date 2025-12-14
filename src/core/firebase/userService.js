@@ -17,10 +17,10 @@ class UserService {
             const userDoc = {
                 email,
                 nickname,
+                emailVerified: false,
                 level: 1,
                 exp: 0,
                 maxExp: 300,
-                // title: '처음 날개 단 병아리!',
                 
                 // 통계
                 stats: {
@@ -43,10 +43,10 @@ class UserService {
             };
 
             await setDoc(doc(db, 'users', userId), userDoc);
-            console.log('✅ User profile created:', userId);
+            console.log('User profile created:', userId);
             return userDoc;
         } catch (error) {
-            console.error('❌ Create user profile error:', error);
+            console.error('Create user profile error:', error);
             throw error;
         }
     }
@@ -67,7 +67,27 @@ class UserService {
                 ...userDoc.data()
             };
         } catch (error) {
-            console.error('❌ Get user profile error:', error);
+            console.error('Get user profile error:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 이메일 인증 상태 업데이트
+     */
+    async updateEmailVerified(userId, verified) {
+        try {
+            const userRef = doc(db, 'users', userId);
+            
+            await updateDoc(userRef, {
+                emailVerified: verified,
+                updatedAt: serverTimestamp()
+            });
+            
+            console.log('Email verification status updated:', verified);
+            return true;
+        } catch (error) {
+            console.error('Update email verification error:', error);
             throw error;
         }
     }
@@ -84,10 +104,10 @@ class UserService {
                 updatedAt: serverTimestamp()
             });
             
-            console.log('✅ Nickname updated:', newNickname);
+            console.log('Nickname updated:', newNickname);
             return true;
         } catch (error) {
-            console.error('❌ Update nickname error:', error);
+            console.error('Update nickname error:', error);
             throw error;
         }
     }
@@ -114,7 +134,7 @@ class UserService {
             while (exp >= maxExp) {
                 exp -= maxExp;
                 level += 1;
-                maxExp += 200; // (임의)레벨당 200씩 증가
+                maxExp += 200;
             }
             
             // 업데이트
@@ -125,11 +145,11 @@ class UserService {
                 updatedAt: serverTimestamp()
             });
             
-            console.log(`✅ Added ${expAmount} exp. New level: ${level}`);
+            console.log(`Added ${expAmount} exp. New level: ${level}`);
             return { exp, level, maxExp, leveledUp: level > userData.level };
             
         } catch (error) {
-            console.error('❌ Add exp error:', error);
+            console.error('Add exp error:', error);
             throw error;
         }
     }
@@ -149,9 +169,9 @@ class UserService {
             // 경험치 추가 (20exp)
             await this.addExp(userId, 20);
             
-            console.log('✅ Todo stats incremented');
+            console.log('Todo stats incremented');
         } catch (error) {
-            console.error('❌ Increment todo stats error:', error);
+            console.error('Increment todo stats error:', error);
             throw error;
         }
     }
@@ -171,9 +191,9 @@ class UserService {
             // 경험치 추가 (20exp)
             await this.addExp(userId, 20);
             
-            console.log('✅ Routine stats incremented');
+            console.log('Routine stats incremented');
         } catch (error) {
-            console.error('❌ Increment routine stats error:', error);
+            console.error('Increment routine stats error:', error);
             throw error;
         }
     }
@@ -193,15 +213,15 @@ class UserService {
             // 경험치 추가 (10exp)
             await this.addExp(userId, 10);
             
-            console.log('✅ Record stats incremented');
+            console.log('Record stats incremented');
         } catch (error) {
-            console.error('❌ Increment record stats error:', error);
+            console.error('Increment record stats error:', error);
             throw error;
         }
     }
 
     /**
-     * 연속 달성 일수 업데이트 : 테스트되지 않음
+     * 연속 달성 일수 업데이트
      */
     async updateStreak(userId) {
         try {
@@ -228,7 +248,6 @@ class UserService {
                 // 연속 끊김
                 newStreak = 1;
             }
-            // diffDays === 0이면 오늘 이미 업데이트됨 (유지)
             
             const maxStreak = Math.max(newStreak, userData.stats?.maxStreak || 0);
             
@@ -239,11 +258,11 @@ class UserService {
                 updatedAt: serverTimestamp()
             });
             
-            console.log(`✅ Streak updated: ${newStreak} days`);
+            console.log(`Streak updated: ${newStreak} days`);
             return { todayStreak: newStreak, maxStreak };
             
         } catch (error) {
-            console.error('❌ Update streak error:', error);
+            console.error('Update streak error:', error);
             throw error;
         }
     }
@@ -260,10 +279,10 @@ class UserService {
                 updatedAt: serverTimestamp()
             });
             
-            console.log('✅ Title updated:', newTitle);
+            console.log('Title updated:', newTitle);
             return true;
         } catch (error) {
-            console.error('❌ Update title error:', error);
+            console.error('Update title error:', error);
             throw error;
         }
     }
