@@ -233,6 +233,8 @@ export default function RoutineScreen(){
   const [isAddSubStep, setIsAddSubStep] = useState(false);
   const [subStepText, setSubStepText] = useState('');
 
+  const [tempDeletedIds, setTempDeletedIds] = useState(new Set());
+
   // 삭제, 필터, 정렬 상태
   const [isDelete, setIsDelete] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -425,10 +427,20 @@ export default function RoutineScreen(){
         {text: "닫기", style: "cancel"},
         {text: "삭제", style: "destructive",
           onPress: async () => {
+            const idsToDelete = new Set(selectedIds);
+            
+            setTempDeletedIds(prev => {
+              const newSet = new Set(prev);
+              idsToDelete.forEach(id => newSet.add(id));
+              return newSet;
+            });
+            
+            cancelDelete();
+
             const mainIds = [];
             const subDeletes = {};
 
-            selectedIds.forEach(id => {
+            idsToDelete.forEach(id => {
               if (id.includes('-')) {
                 const [parentId, subId] = id.split('-');
                 if (!subDeletes[parentId]) subDeletes[parentId] = [];
@@ -439,7 +451,9 @@ export default function RoutineScreen(){
             });
 
             try {
-              const subUpdatePromises = Object.keys(subDeletes).map(async (parentId) => {
+              const allPromises = [];
+
+              const subUpdates = Object.keys(subDeletes).map(async (parentId) => {
                 if (mainIds.includes(parentId)) return;
 
                 const parent = routines.find(r => r.id === parentId);
@@ -448,20 +462,21 @@ export default function RoutineScreen(){
                   const newSubSteps = parent.subs.filter(step => !targetSubIds.includes(step.id));
                   
                   if (newSubSteps.length !== parent.subs.length) {
-                    await updateData('routine', parentId, { subs:newSubSteps });
+                    return updateData('routine', parentId, { subs:newSubSteps });
                   }
                 }
               });
-              for (const id of mainIds) {
-                await deleteData('routine', id);
-              }
-              await refreshData();
+              allPromises.push(...subUpdates);
 
-              cancelDelete();
+              const mainDeletes = mainIds.map(id => deleteData('routine', id));
+              allPromises.push(...mainDeletes);
+              
+              await Promise.all(allPromises);
             } catch (e) {
               console.error(e);
+              Alert.alert("오류", "삭제 중 문제가 발생했습니다.");
+              setTempDeletedIds(new Set());
             }
-            cancelDelete();
           }
         }
       ]
@@ -619,6 +634,8 @@ export default function RoutineScreen(){
       return itemDate.getFullYear() === currentMonth.getFullYear() && itemDate.getMonth() === currentMonth.getMonth();
     });
 
+    filtered = filtered.filter(item => !tempDeletedIds.has(item.id));
+
     // 활성 필터(중요, 오늘, 태그) 적용
     if (activeFilter) {
       if (activeFilter.type === 'important') {
@@ -672,7 +689,7 @@ export default function RoutineScreen(){
       filterSortedRoutine: [...uncompleted, ...completed],  // 미완료 우선 표시
       remainderCount: count
     };
-  }, [routines, sortOrder, currentMonth, activeFilter]);
+  }, [routines, sortOrder, currentMonth, activeFilter, tempDeletedIds]);
 
   const itemSort = (newSortOrder) => {
     setSortOrder(newSortOrder);
@@ -1901,68 +1918,68 @@ export default function RoutineScreen(){
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal transparent={true} animationType='fade' visible={isEditorVisible} onRequestClose={handleWriteCancel}
-        statusBarTranslucent>
-
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={{ flex: 1 }}
-        >
-          <View style={[styles.baseBackdrop, { justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }]}>
-            <TouchableOpacity 
-              style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }} 
-              activeOpacity={1} 
-              onPress={handleWriteCancel}/>
-            
-            <View style={styles.editorContent}>
-              {editItem && (
-                <>
-                  <NoScaleTextInput
-                    value={editItem.title}
-                    onChangeText={(text) => setEditItem(prev => ({...prev, title: text}))}
-                    placeholder="새 루틴"
-                    style={styles.editorInput}
-                    autoFocus={true}
-                  />
-                  
-                  <View style={styles.editorButtonRow}>
-                    <TouchableOpacity onPress={handleOpenTag} style={[styles.editorBtn, editItem.tag && {backgroundColor: '#3A9CFF'}]}>
-                      <MaterialIcons name="label-outline" size={15} color={editItem.tag ? "white" : "gray"}/>
-                      <NoScaleText style={[styles.editorText, editItem.tag && {color: 'white'}]}>
-                        {getTagLabel(editItem.tag)}
-                      </NoScaleText>
+      {isEditorVisible && (
+        <View style={styles.fullScreenModal}>
+          <KeyboardAvoidingView 
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={{ flex: 1 }}
+          >
+            <View style={[styles.baseBackdrop, { justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }]}>
+              <TouchableOpacity 
+                style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }} 
+                activeOpacity={1} 
+                onPress={handleWriteCancel}/>
+              
+              <View style={styles.editorContent}>
+                {editItem && (
+                  <>
+                    <NoScaleTextInput
+                      value={editItem.title}
+                      onChangeText={(text) => setEditItem(prev => ({...prev, title: text}))}
+                      placeholder="새 루틴"
+                      style={styles.editorInput}
+                      autoFocus={true}
+                    />
+                    
+                    <View style={styles.editorButtonRow}>
+                      <TouchableOpacity onPress={handleOpenTag} style={[styles.editorBtn, editItem.tag && {backgroundColor: '#3A9CFF'}]}>
+                        <MaterialIcons name="label-outline" size={15} color={editItem.tag ? "white" : "gray"}/>
+                        <NoScaleText style={[styles.editorText, editItem.tag && {color: 'white'}]}>
+                          {getTagLabel(editItem.tag)}
+                        </NoScaleText>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={handleOpenCalendar} style={[styles.editorBtn, editItem.date && {backgroundColor: '#3A9CFF'}]}>
+                        <Ionicons name="calendar-clear-outline" size={15} color={editItem.date ? "white" : "gray"}/>
+                        <NoScaleText style={[styles.editorText, editItem.date && {color: 'white'}]}>
+                            {editItem.date ? editItem.date.substring(2) : '날짜'}
+                        </NoScaleText>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={handleOpenAlarm} style={[styles.editorBtn, editItem.remind && {backgroundColor: '#3A9CFF'}]}>
+                        <Ionicons name="notifications-outline" size={15} color={editItem.remind ? "white" : "gray"}/>
+                        <NoScaleText style={[styles.editorText, editItem.remind && {color: 'white'}]}>
+                          {getAlarmLabel(editItem.remind)}
+                        </NoScaleText>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={handleOpenRepeat} style={[styles.editorBtn, editItem.repeated && {backgroundColor: '#3A9CFF'}]}>
+                        <Ionicons name="repeat-outline" size={15} color={editItem.repeated ? "white" : "gray"}/>
+                        <NoScaleText style={[styles.editorText, editItem.repeated && {color: 'white'}]}>
+                          {getRepeatLabel(editItem.repeated)}
+                        </NoScaleText>
+                      </TouchableOpacity>
+                    </View>
+                    
+                    <TouchableOpacity onPress={handleSaveRoutine} style={{alignItems: 'center', marginTop:5}}>
+                        <NoScaleText style={{fontSize: 15, width: '90%', backgroundColor: '#3A9CFF', borderRadius: 30, textAlign: 'center', padding: 5, color: '#ffffff',}}>
+                          완료
+                        </NoScaleText>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={handleOpenCalendar} style={[styles.editorBtn, editItem.date && {backgroundColor: '#3A9CFF'}]}>
-                      <Ionicons name="calendar-clear-outline" size={15} color={editItem.date ? "white" : "gray"}/>
-                      <NoScaleText style={[styles.editorText, editItem.date && {color: 'white'}]}>
-                          {editItem.date ? editItem.date.substring(2) : '날짜'}
-                      </NoScaleText>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={handleOpenAlarm} style={[styles.editorBtn, editItem.remind && {backgroundColor: '#3A9CFF'}]}>
-                      <Ionicons name="notifications-outline" size={15} color={editItem.remind ? "white" : "gray"}/>
-                      <NoScaleText style={[styles.editorText, editItem.remind && {color: 'white'}]}>
-                        {getAlarmLabel(editItem.remind)}
-                      </NoScaleText>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={handleOpenRepeat} style={[styles.editorBtn, editItem.repeated && {backgroundColor: '#3A9CFF'}]}>
-                      <Ionicons name="repeat-outline" size={15} color={editItem.repeated ? "white" : "gray"}/>
-                      <NoScaleText style={[styles.editorText, editItem.repeated && {color: 'white'}]}>
-                        {getRepeatLabel(editItem.repeated)}
-                      </NoScaleText>
-                    </TouchableOpacity>
-                  </View>
-                  
-                  <TouchableOpacity onPress={handleSaveRoutine} style={{alignItems: 'center', marginTop:5}}>
-                      <NoScaleText style={{fontSize: 15, width: '90%', backgroundColor: '#3A9CFF', borderRadius: 30, textAlign: 'center', padding: 5, color: '#ffffff',}}>
-                        완료
-                      </NoScaleText>
-                  </TouchableOpacity>
-                </>
-              )}
+                  </>
+                )}
+              </View>
             </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+          </KeyboardAvoidingView>
+        </View>
+      )}
 
       {!isDelete && (
         <TouchableOpacity onPress={handleShowEditor} style={styles.fab}>
@@ -2447,5 +2464,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#555',
     marginLeft: 8,
+  },
+  fullScreenModal: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 9999,
+    backgroundColor: 'transparent',
+    elevation: 20,
   },
 });

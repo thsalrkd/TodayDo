@@ -4,7 +4,8 @@ import { View, TouchableOpacity, StyleSheet, Image, ScrollView, Alert, Modal } f
 
 import { useData } from'../core/context/dataContext';
 import { useAuth } from '../core/context/authContext';
-import userService from '../core/firebase/userService';
+import userService from '../core/firebase/userService'
+import { useUser } from '../core/context/userContext';
 
 import Ionicons from '@expo/vector-icons/Ionicons'
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -13,33 +14,52 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { Calendar } from 'react-native-calendars';
 import ProgressBar from 'react-native-progress/Bar';
 
+import defaultprofileimage from '../../assets/defaultprofileimage.png'
+import levelbg from '../../assets/levelbg.png'
+
 import { useNavigation } from '@react-navigation/native';
 
 // 상단 헤더 컴포넌트, 프로필 이미지, 환영 메시지, 경험치바, 알림 버튼 표시
-function HomeHeader({user}) {
+function HomeHeader({userProfile, authUser}) {
   const navigation = useNavigation();
-  const currentExp = user?.exp || 0;
-  const maxExp = user?.maxExp || 300;
+  
+  const nickname = userProfile?.nickname || authUser?.nickname || 'User';
+  const title = userProfile?.title || '-';
+  const currentExp = userProfile?.exp || 0;
+  const maxExp = userProfile?.maxExp || 300;
+  const userLevel = userProfile?.level || 1;
+  
   const progress = maxExp > 0 ? currentExp / maxExp : 0;
-  const userLevel = user?.level || 1;
 
   return (
     <View style={styles.header}>
       <View style={styles.profileArea}>
         <View style={styles.avatarContainer}>
-           <View style={styles.profileImageWrapper}>
-              <Ionicons name="person" size={30} color='#BDBDBD' />
-           </View>
+           <View style={styles.avatarContainer}>
+           <Image 
+             source={defaultprofileimage} 
+             style={styles.avatarImage}
+             resizeMode="cover"
+           />
 
            <View style={styles.levelBadgeContainer}>
-              <MaterialCommunityIcons name="hexagon" size={24} color="#3A9CFF" />
+              <Image 
+                source={levelbg} 
+                style={styles.levelBgImage} 
+                resizeMode="contain"
+              />
               <NoScaleText style={styles.levelText}>{userLevel}</NoScaleText>
            </View>
         </View>
+        </View>
 
         <View style={styles.profileText}>
-          <NoScaleText style={{fontSize: 10}}>{user.title || '칭호 없음'}</NoScaleText>
-          <NoScaleText>{user?.nickname || user?.name || 'User'}님 환영합니다!</NoScaleText>
+          <NoScaleText style={{fontSize: 10}}>{title || '-'}</NoScaleText>
+          <View style={{flexDirection: 'row'}}>
+            <NoScaleText style={{color: '#3A9CFF', fontSize: 15, }}>{nickname}</NoScaleText>
+            <NoScaleText>님 환영합니다!</NoScaleText>
+          </View>
+          
 
           <View style={{flexDirection: 'row', alignItems: 'center'}}>
             <ProgressBar progress={progress} width={200} style={{marginRight: 5}} />
@@ -113,6 +133,8 @@ function MonthCalendar({selectedDate, onDateSelect, today, records}){
 
 // 상태 바 컴포넌트, 완료한 일/이번 달 총 할 일
 function StateList({ current, total }){
+  const navigation = useNavigation();
+
   const safeCurrent = current || 0;
   const safeTotal = total || 0;
   
@@ -142,7 +164,7 @@ function StateList({ current, total }){
       </View>
 
       <View style={{alignItems: 'flex-end', marginHorizontal: 16}}>
-        <TouchableOpacity style={{margin: 5, flexDirection: 'row', alignItems: 'center'}}>
+        <TouchableOpacity style={{margin: 5, flexDirection: 'row', alignItems: 'center'}} onPress={() => navigation.navigate('Statistics')}>
           <NoScaleText style={{color: "#3A9CFF", fontSize: 12}}>통계 보러가기</NoScaleText>
           <Ionicons name="arrow-forward" size={10} color="#3A9CFF" style={{marginLeft: 2}}/>
         </TouchableOpacity>
@@ -336,6 +358,7 @@ export default function HomeScreen(){
 
   const { todos, routines, records, updateData } = useData();
   const { user } = useAuth();
+  const { userProfile } = useUser();
 
   const today = new Date();
   const year = today.getFullYear();
@@ -425,8 +448,6 @@ export default function HomeScreen(){
         }
       }
       if (modifiedModalData.routine) {
-        let totalExpReward = 0; // 이번 저장으로 얻을 총 경험치
-
         for (const item of modifiedModalData.routine) {
           const original = routines.find(r => r.id === item.id);
           
@@ -464,7 +485,7 @@ export default function HomeScreen(){
     <SafeAreaProvider>
       <SafeAreaView style={styles.allArea}>
         <ScrollView>
-          <HomeHeader user={user}/>
+          <HomeHeader userProfile={userProfile} authUser={user}/>
           <MonthCalendar
             selectedDate={selectedDate} 
             onDateSelect={dateSelect}
@@ -511,26 +532,29 @@ const styles = StyleSheet.create({
     position: 'relative',
     marginRight: 12,
   },
-  profileImageWrapper: {
+  avatarImage: {
     width: 48,
     height: 48,
     borderRadius: 24,
     backgroundColor: '#F0F0F0',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   levelBadgeContainer: {
     position: 'absolute',
-    bottom: -2,
-    right: -2,
+    bottom: -5,
+    right: -5,
     width: 24,
     height: 24,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  levelBgImage: {
+    width: 24,
+    height: 24,
+    position: 'absolute',
+  },
   levelText: {
     position: 'absolute',
-    color: 'white',
+    color: '#3A9CFF',
     fontSize: 10,
     fontWeight: 'bold',
   },
