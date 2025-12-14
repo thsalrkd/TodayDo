@@ -25,7 +25,7 @@ export default function EmailVerification({ navigation, route}) {
         <TouchableOpacity
               style={[styles.button]}
               onPress={() => {
-                navigation.navigate('ForgotPWNewPW');
+                navigation.navigate('ForgotPWFin');
               }}
             >
               <NoScaleText style={styles.buttonText}>계속</NoScaleText>
