@@ -1,23 +1,28 @@
 import React, { useState } from 'react';
 import { NoScaleText, NoScaleTextInput } from '../components/NoScaleText';
-import { View, TouchableOpacity, StyleSheet, Keyboard, TouchableWithoutFeedback, ActivityIndicator } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Keyboard, TouchableWithoutFeedback, Alert, ActivityIndicator } from 'react-native';
 import { useAuth } from '../core/context/authContext';
 
 export default function SignUpName({ navigation, route }) {
   const [nickname, setNickname] = useState('');
-  const { signUp } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const { completeSignUp } = useAuth();
 
-  const totalSteps = 3; // 회원가입 총 단계
-  const currentStep = 3; // 현재 단계
-  const progressWidth = `${(currentStep / totalSteps) * 100}%`; // 진행바 길이
+  const totalSteps = 3;
+  const currentStep = 3;
+  const progressWidth = `${(currentStep / totalSteps) * 100}%`;
 
   const handleSignUp = async () => {
+    if (!nickname) return;
+
+    setLoading(true);
     try {
-      await signUp(nickname);
-      // 성공 시 완료 화면으로 이동
-      navigation.navigate('SignUpFin', { nickname });
+      await completeSignUp(nickname.trim());
+      navigation.navigate('SignUpFin', { nickname: nickname.trim() });
     } catch (error) {
-      Alert.alert("회원가입 실패", error.message);
+      Alert.alert('회원가입 실패', error.message || '닉네임 설정 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -38,15 +43,20 @@ export default function SignUpName({ navigation, route }) {
               value={nickname}
               onChangeText={setNickname}
               autoCapitalize="none"
+              editable={!loading}
             />
           </View>
 
           <TouchableOpacity
-            style={[styles.button, !nickname && styles.buttonDisabled]}
-            disabled={!nickname}
+            style={[styles.button, (!nickname.trim() || loading) && styles.buttonDisabled]}
+            disabled={!nickname.trim() || loading}
             onPress={handleSignUp}
           >
-            <NoScaleText style={styles.buttonText}>계속</NoScaleText>
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <NoScaleText style={styles.buttonText}>계속</NoScaleText>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -64,13 +74,11 @@ const styles = StyleSheet.create({
     paddingTop: 40,
     marginTop: 8,
 
-    // iOS 그림자
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.5,
     shadowRadius: 6,
 
-    // Android 그림자
     elevation: 6,
   },
   progressBar: {
